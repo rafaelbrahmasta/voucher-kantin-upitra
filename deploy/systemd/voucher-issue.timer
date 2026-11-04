@@ -1,0 +1,9 @@
+[Unit]
+Description=Jadwal terbit voucher (Senin-Jumat 09.55 WIB)
+
+[Timer]
+OnCalendar=Mon..Fri 09:55 Asia/Jakarta
+Persistent=true
+
+[Install]
+WantedBy=timers.target

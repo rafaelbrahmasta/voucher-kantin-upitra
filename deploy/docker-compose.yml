@@ -1,0 +1,32 @@
+# Lingkungan pengembangan: PostgreSQL + Mailpit (inbox email palsu).
+# Skema (migrations/0001_init.sql) dan data contoh dijalankan otomatis saat pertama kali dibuat.
+# Jika menambah file migrasi baru, tambahkan baris volume-nya di bawah.
+# Untuk mengulang dari awal:  docker compose -f deploy/docker-compose.yml down -v
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: voucher
+      POSTGRES_PASSWORD: voucher
+      POSTGRES_DB: voucher
+      TZ: Asia/Jakarta
+    ports:
+      - "5432:5432"
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+      - ../migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
+      - ./dev_seed.sql:/docker-entrypoint-initdb.d/zz_dev_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voucher -d voucher"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Inbox di http://localhost:8025
+
+volumes:
+  dbdata:

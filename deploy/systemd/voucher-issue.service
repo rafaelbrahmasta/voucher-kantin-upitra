@@ -1,0 +1,12 @@
+[Unit]
+Description=Terbit voucher kantin harian
+OnFailure=voucher-alert@%n.service
+
+[Service]
+Type=oneshot
+User=voucher
+WorkingDirectory=/opt/voucher-kantin
+EnvironmentFile=/etc/voucher/env
+ExecStart=/opt/voucher-kantin/bin/issue-vouchers
+NoNewPrivileges=yes
+ProtectSystem=strict
