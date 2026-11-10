@@ -1,0 +1,22 @@
+{{define "base"}}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Voucher Kantin UPITRA</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin">
+<header class="nav">
+  <strong class="brand">Voucher Kantin <span>UPITRA</span></strong>
+  <nav aria-label="Menu utama">
+    <a href="/admin"{{if eq .Tab "ringkasan"}} aria-current="page"{{end}}>Ringkasan</a>
+    <a href="/admin/transaksi"{{if eq .Tab "transaksi"}} aria-current="page"{{end}}>Transaksi</a>
+    <a href="/admin/tenant"{{if eq .Tab "tenant"}} aria-current="page"{{end}}>Tenant &amp; menu</a>
+  </nav>
+  <span class="muted small devnote">Mode dev, tanpa login</span>
+</header>
+<main class="wide">{{template "content" .}}</main>
+</body>
+</html>{{end}}

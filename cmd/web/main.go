@@ -15,7 +15,10 @@ import (
 
 	"voucher-kantin/internal/config"
 	"voucher-kantin/internal/db"
+	"voucher-kantin/internal/master"
+	"voucher-kantin/internal/report"
 	"voucher-kantin/internal/server"
+	"voucher-kantin/internal/voucher"
 )
 
 func main() {
@@ -44,7 +47,12 @@ func run(log *slog.Logger) error {
 	}
 	defer pool.Close()
 
-	srv, err := server.New(cfg, pool, log)
+	srv, err := server.New(cfg, server.Deps{
+		DB:      pool,
+		Scanner: voucher.NewService(pool),
+		Reports: report.NewService(pool),
+		Master:  master.NewService(pool),
+	}, log)
 	if err != nil {
 		return err
 	}

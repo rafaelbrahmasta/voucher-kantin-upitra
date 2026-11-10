@@ -1,0 +1,100 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>{{.T.Name}}</h1>
+    <p class="muted"><a href="/admin/tenant">← Semua tenant</a></p>
+  </div>
+  <div>{{if .T.Active}}<span class="tag tag-ok">Aktif</span>{{else}}<span class="tag tag-void">Nonaktif</span>{{end}}</div>
+</div>
+{{if .Flash}}<p class="flash" role="status">{{.Flash}}</p>{{end}}
+{{if .Error}}<p class="flash flash-err" role="alert">{{.Error}}</p>{{end}}
+
+{{if .NewCode}}
+<section class="panel codebox" aria-labelledby="kode-judul">
+  <h2 id="kode-judul">Kode koneksi HP baru</h2>
+  <p class="muted small">Tampil sekali ini saja. Berikan ke tenant, atau minta tenant memindai QR dengan kamera HP bawaan.</p>
+  <div class="codegrid">
+    <div>
+      <p class="bigcode">{{.NewCode}}</p>
+      <p class="small muted">Tenant membuka <strong>/masuk</strong> lalu mengetik kode ini, atau membuka tautan:</p>
+      <p class="small linkout"><code>{{.Link}}</code></p>
+    </div>
+    {{if .QR}}<img class="qr" src="{{.QR}}" width="240" height="240" alt="QR untuk menghubungkan HP tenant">{{end}}
+  </div>
+</section>
+{{end}}
+
+<div class="cols2">
+  <section class="panel">
+    <h2>Data tenant</h2>
+    <form method="post" action="/admin/tenant/{{.T.ID}}" class="stack">
+      <div><label for="name" class="small muted">Nama tenant</label>
+          <input id="name" class="field" name="name" value="{{.T.Name}}" maxlength="100" required></div>
+        <div><label for="owner" class="small muted">Nama pemilik</label>
+          <input id="owner" class="field" name="owner" value="{{.T.Owner}}" maxlength="150" required></div>
+        <div><label for="stall" class="small muted">Lokasi stan (opsional)</label>
+          <input id="stall" class="field" name="stall" value="{{.T.Stall}}" maxlength="50"></div>
+        <div class="pair">
+          <div><label for="bank_name" class="small muted">Bank (opsional)</label>
+            <input id="bank_name" class="field" name="bank_name" value="{{.T.BankName}}" maxlength="50"></div>
+          <div><label for="bank_account" class="small muted">No. rekening (opsional)</label>
+            <input id="bank_account" class="field" name="bank_account" value="{{.T.BankAccount}}" inputmode="numeric" maxlength="34"></div>
+        </div>
+      <label class="check"><input type="checkbox" name="active" value="1"{{if .T.Active}} checked{{end}}> Tenant aktif</label>
+      <p class="muted small">Menonaktifkan tenant juga memutus semua HP-nya dan menyembunyikannya dari daftar filter.</p>
+      <div><button class="btn-s" type="submit">Simpan perubahan</button></div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>Koneksi HP untuk scan</h2>
+    <p class="muted small">{{if .T.HasCode}}Ada kode aktif. Kode asli tidak bisa dilihat lagi; buat kode baru bila hilang.{{else}}Belum ada kode. Buat kode lalu masukkan di HP tenant.{{end}}</p>
+    <div class="actions-row">
+      <form method="post" action="/admin/tenant/{{.T.ID}}/kode"><button class="btn-s" type="submit"{{if not .T.Active}} disabled{{end}}>{{if .T.HasCode}}Buat kode baru{{else}}Buat kode koneksi{{end}}</button></form>
+      <form method="post" action="/admin/tenant/{{.T.ID}}/putus"><button class="btn-d" type="submit">Putuskan semua HP</button></form>
+    </div>
+    <p class="muted small">Kode baru mematikan kode lama, tetapi HP yang sudah tersambung tetap bisa dipakai. Untuk HP hilang atau berganti tangan, pakai <em>Putuskan semua HP</em>.</p>
+  </section>
+</div>
+
+<section class="panel">
+  <h2>Menu kantin</h2>
+  <p class="muted small">Menu yang tersedia muncul di HP tenant pada halaman scan. Urutan: angka kecil tampil lebih dulu.</p>
+
+  {{if .Menu}}
+  <div class="menuhead small muted" aria-hidden="true"><span>Nama menu</span><span>Harga (Rp)</span><span>Urutan</span><span>Tersedia</span><span></span></div>
+  {{range .Menu}}
+  <form class="menurow" method="post" action="/admin/tenant/{{$.T.ID}}/menu/{{.ID}}">
+    <input class="field" name="name" value="{{.Name}}" maxlength="80" aria-label="Nama menu" required>
+    <input class="field" name="price" value="{{.Price}}" inputmode="numeric" aria-label="Harga rupiah" required>
+    <input class="field" name="sort" value="{{.Sort}}" inputmode="numeric" aria-label="Urutan">
+    <label class="check"><input type="checkbox" name="available" value="1"{{if .Available}} checked{{end}}> Ada</label>
+    <span class="rowbtns">
+      <button class="btn-s" type="submit">Simpan</button>
+      <button class="btn-d" type="submit" formaction="/admin/tenant/{{$.T.ID}}/menu/{{.ID}}/hapus">Hapus</button>
+    </span>
+  </form>
+  {{end}}
+  {{else}}
+  <p class="muted">Belum ada menu. Tenant tetap bisa scan tanpa memilih menu.</p>
+  {{end}}
+
+  <h3 class="sub">Tambah menu</h3>
+  <form class="menurow addrow" method="post" action="/admin/tenant/{{.T.ID}}/menu">
+    <input class="field" name="name" placeholder="Contoh: Nasi goreng" maxlength="80" aria-label="Nama menu baru" required>
+    <input class="field" name="price" placeholder="15000" inputmode="numeric" aria-label="Harga rupiah" required>
+    <input class="field" name="sort" placeholder="0" inputmode="numeric" aria-label="Urutan">
+    <span></span>
+    <span class="rowbtns"><button class="btn-s" type="submit">Tambah</button></span>
+  </form>
+</section>
+
+<section class="panel danger">
+  <h2>Hapus tenant</h2>
+  <p class="muted small">Hanya bisa untuk tenant yang belum pernah menerima voucher. Jika sudah ada transaksi, nonaktifkan saja.</p>
+  <form method="post" action="/admin/tenant/{{.T.ID}}/hapus" class="actions-row">
+    <label class="check"><input type="checkbox" name="yakin" value="1" required> Saya yakin</label>
+    <button class="btn-d" type="submit">Hapus tenant</button>
+  </form>
+</section>
+{{end}}

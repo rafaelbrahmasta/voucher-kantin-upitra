@@ -1,0 +1,36 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>Tenant &amp; menu</h1>
+    <p class="muted">Kelola kantin, hubungkan HP tenant untuk scan, dan atur menu yang bisa dipilih saat scan</p>
+  </div>
+  <a class="btn-s" href="/admin/tenant/baru">Tambah tenant</a>
+</div>
+{{if .Flash}}<p class="flash" role="status">{{.Flash}}</p>{{end}}
+
+{{if .Rows}}
+<div class="scroll">
+<table>
+  <thead><tr><th>Tenant</th><th>Pemilik</th><th>Lokasi stan</th><th>Menu</th><th>Koneksi HP</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {{range .Rows}}
+    <tr{{if not .Active}} class="void"{{end}}>
+      <td><strong>{{.Name}}</strong></td>
+      <td>{{.Owner}}</td>
+      <td>{{if .Stall}}{{.Stall}}{{else}}<span class="muted">–</span>{{end}}</td>
+      <td>{{.MenuCount}} item</td>
+      <td>{{if .HasCode}}<span class="tag tag-ok">Kode aktif</span>{{else}}<span class="tag tag-void">Belum ada kode</span>{{end}}</td>
+      <td>{{if .Active}}<span class="tag tag-ok">Aktif</span>{{else}}<span class="tag tag-void">Nonaktif</span>{{end}}</td>
+      <td class="r"><a class="btn-o" href="/admin/tenant/{{.ID}}">Kelola</a></td>
+    </tr>
+    {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<div class="emptybox">
+  <strong>Belum ada tenant.</strong>
+  <p>Klik <em>Tambah tenant</em>, lalu isi menu dan buat kode untuk menghubungkan HP tenant.</p>
+</div>
+{{end}}
+{{end}}

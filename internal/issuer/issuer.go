@@ -19,6 +19,7 @@ import (
 
 	"github.com/skip2/go-qrcode"
 
+	"voucher-kantin/internal/idfmt"
 	"voucher-kantin/internal/mail"
 	"voucher-kantin/internal/token"
 )
@@ -230,20 +231,10 @@ func sendWithRetry(ctx context.Context, m mail.Mailer, msg mail.Message, log *sl
 	return err
 }
 
-var (
-	hari  = [...]string{"Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"}
-	bulan = [...]string{"Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"}
-)
-
-// idDate: "Rabu, 4 Nov 2026"
-func idDate(t time.Time) string {
-	return fmt.Sprintf("%s, %d %s %d", hari[t.Weekday()], t.Day(), bulan[t.Month()-1], t.Year())
-}
-
 func buildMessage(s Staff, day time.Time, code string, validUntil time.Time, png []byte) mail.Message {
 	return mail.Message{
 		To:      s.Email,
-		Subject: "Voucher kantin · " + idDate(day),
+		Subject: "Voucher kantin · " + idfmt.Date(day),
 		HTML: fmt.Sprintf(`<p>Halo <b>%s</b>, ini voucher kantin Anda untuk hari ini.</p>
 <p style="font-size:20px"><b>Potongan Rp5.000</b></p>
 <p><img src="cid:qr" width="240" height="240" alt="QR voucher"></p>

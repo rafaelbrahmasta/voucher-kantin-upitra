@@ -183,20 +183,6 @@ func TestVoucherSudahDipakaiTidakDiganti(t *testing.T) {
 	}
 }
 
-func TestIdDate(t *testing.T) {
-	cases := map[string]string{
-		"2026-12-25": "Jumat, 25 Des 2026",
-		"2027-01-04": "Senin, 4 Jan 2027",
-		"2026-08-17": "Senin, 17 Agu 2026",
-		"2026-05-01": "Jumat, 1 Mei 2026",
-	}
-	for in, want := range cases {
-		if got := idDate(mustDay(in)); got != want {
-			t.Errorf("%s: %q != %q", in, got, want)
-		}
-	}
-}
-
 func mustDay(s string) time.Time {
 	d, _ := time.ParseInLocation("2006-01-02", s, wib)
 	return d

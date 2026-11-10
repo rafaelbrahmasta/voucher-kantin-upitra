@@ -1,0 +1,26 @@
+{{define "base"}}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1d4ed8">
+<title>{{.Title}} · Voucher Kantin UPITRA</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="tenant">
+<div class="shell">
+<main class="login">
+  <h1>Hubungkan HP</h1>
+  <p class="muted">Masukkan kode dari admin supaya HP ini tersambung ke tenant Anda. Cukup sekali; HP akan diingat.</p>
+  {{if .Error}}<p class="flash flash-err" role="alert">{{.Error}}</p>{{end}}
+  <form method="post" action="/masuk" class="manual">
+    <label for="kode" class="small muted">Kode koneksi, contoh 7M4QX-P8RTK</label>
+    <input id="kode" name="kode" class="field" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" required>
+    <button class="btn primary" type="submit">Hubungkan</button>
+  </form>
+  <p class="muted small center">Belum punya kode? Minta admin membuatnya di Dashboard, menu Tenant &amp; menu.</p>
+</main>
+</div>
+<script src="/static/masuk.js" defer></script>
+</body>
+</html>{{end}}

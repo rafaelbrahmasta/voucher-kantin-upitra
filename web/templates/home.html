@@ -1,5 +1,12 @@
 {{define "content"}}
 <h1>Voucher Kantin UPITRA</h1>
-<p>Server berjalan. Mode: <strong>{{.Env}}</strong>.</p>
-<p class="muted">Halaman scan tenant, dashboard Biro Keuangan, dan halaman admin akan ditambahkan di sini.</p>
+<p>Server berjalan. Mode: <strong>{{.Env}}</strong>. Semua halaman di bawah terbuka tanpa login hanya karena mode dev.</p>
+<ul class="links">
+  <li><a href="/scan">Halaman scan tenant</a> <span class="muted">dibuka di HP tenant</span></li>
+  <li><a href="/today">Riwayat scan hari ini</a> <span class="muted">untuk mencocokkan kas</span></li>
+  <li><a href="/admin">Dashboard Biro Keuangan dan admin</a> <span class="muted">ringkasan harian</span></li>
+  <li><a href="/admin/transaksi">Daftar transaksi</a> <span class="muted">dengan filter</span></li>
+  <li><a href="/admin/tenant">Tenant &amp; menu</a> <span class="muted">kelola tenant, kode koneksi HP, menu kantin</span></li>
+  <li><a href="/masuk">Hubungkan HP tenant</a> <span class="muted">memasukkan kode dari admin</span></li>
+</ul>
 {{end}}

@@ -1,0 +1,68 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>Ringkasan</h1>
+    <p class="muted">{{.DateLabel}}{{if .IsToday}} · diperbarui {{.Updated}}{{end}}</p>
+  </div>
+  <form method="get" class="inline">
+    <label for="tanggal" class="muted small">Tanggal</label>
+    <input id="tanggal" class="field" type="date" name="tanggal" value="{{.Date}}">
+    <button class="btn-s" type="submit">Tampilkan</button>
+  </form>
+</div>
+
+{{if eq .Sum.Issued 0}}
+<div class="emptybox">
+  <strong>Belum ada voucher untuk tanggal ini.</strong>
+  <p>Voucher dibuat oleh job terbit harian. Di lingkungan uji, jalankan <code>go run ./cmd/issue-vouchers -open -print</code>, atau pilih tanggal lain.</p>
+</div>
+{{else}}
+<dl class="stats">
+  <div><dt>Voucher terbit</dt><dd>{{.Sum.Issued}}</dd><dd class="sub">{{.Sum.Inactive}} staf nonaktif</dd></div>
+  <div><dt>Voucher terpakai</dt><dd>{{.Sum.Used}}</dd><dd class="sub">{{.Unused}} belum dipakai</dd></div>
+  <div><dt>Tingkat pemakaian</dt><dd>{{.Pct}}%</dd><dd class="sub">{{.Sum.Void}} dibatalkan</dd></div>
+  <div><dt>Nilai penggantian</dt><dd class="money">{{rupiah .Sum.Amount}}</dd><dd class="sub">{{.Sum.Used}} voucher terpakai</dd></div>
+</dl>
+
+<div class="cols">
+  <section class="panel">
+    <h2>Pemakaian per tenant</h2>
+    <p class="muted small">Voucher terpakai dan nilai yang akan diganti</p>
+    {{if .Tenants}}
+    <ul class="usage">
+      {{range .Tenants}}
+      <li>
+        <span class="tn">{{.Name}}</span>
+        <progress max="{{$.MaxCount}}" value="{{.Count}}" aria-label="{{.Name}}">{{.Count}}</progress>
+        <span class="num">{{.Count}} · {{rupiah .Amount}}</span>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="muted">Belum ada tenant aktif.</p>{{end}}
+  </section>
+
+  <section class="panel">
+    <h2>Transaksi terbaru</h2>
+    <p class="muted small">Siapa memakai voucher, kapan, dan di mana</p>
+    {{if .Recent}}
+    <div class="scroll">
+    <table>
+      <thead><tr><th>Jam</th><th>Staf</th><th>Tenant</th><th>Status</th></tr></thead>
+      <tbody>
+        {{range .Recent}}
+        <tr>
+          <td class="nowrap">{{jam .At}}</td>
+          <td><strong>{{.Staff}}</strong><br><span class="muted small">{{.Unit}}</span></td>
+          <td>{{.Tenant}}</td>
+          <td>{{if .Voided}}<span class="tag tag-void">Dibatalkan</span>{{else}}<span class="tag tag-ok">Terpakai</span>{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+    </div>
+    <p class="foot muted small">Menampilkan {{len .Recent}} dari {{.RecentTotal}} · <a href="{{.AllURL}}">Lihat semua transaksi</a></p>
+    {{else}}<p class="muted">Belum ada voucher yang dipakai pada tanggal ini.</p>{{end}}
+  </section>
+</div>
+{{end}}
+{{end}}

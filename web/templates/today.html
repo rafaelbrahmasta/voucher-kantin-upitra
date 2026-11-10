@@ -1,0 +1,33 @@
+{{define "content"}}
+<header class="topbar">
+  <div>
+    <strong>Hari ini</strong>
+    <span class="muted small">{{.DayLabel}}</span>
+  </div>
+  <div class="right">
+    <span class="muted small">{{.Tenant.Name}}</span>
+    <form method="post" action="/keluar" class="logout"><button class="linkbtn small" type="submit">Putuskan HP ini</button></form>
+  </div>
+</header>
+
+<section class="sum">
+  <div><span class="muted small">Voucher terpakai</span><strong class="big">{{.Count}}</strong></div>
+  <div class="right"><span class="muted small">Dicairkan sore ini</span><strong class="big accent">{{rupiah .Total}}</strong></div>
+</section>
+<p class="muted small pad">Ambil tunai di Biro Keuangan setelah 16.00</p>
+
+<h2 class="sect">Riwayat scan</h2>
+{{if .Scans}}
+<ul class="rows">
+  {{range .Scans}}
+  <li{{if .Voided}} class="void"{{end}}>
+    <span class="time">{{jam .At}}</span>
+    <span class="who"><strong>{{.Staff}}</strong><span class="muted small">{{.Unit}}</span></span>
+    <span class="amt">{{if .Voided}}Dibatalkan{{else}}{{rupiah .Amount}}{{end}}</span>
+  </li>
+  {{end}}
+</ul>
+{{else}}
+<p class="empty pad"><strong>Belum ada scan hari ini.</strong><br>Buka tab Scan dan arahkan kamera ke QR voucher staf.</p>
+{{end}}
+{{end}}
