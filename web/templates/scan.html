@@ -1,7 +1,10 @@
 {{define "content"}}
 <header class="topbar">
   <div>
-    <strong>{{.Tenant.Name}}</strong>
+    <div class="topbar-row">
+      <strong>{{.Tenant.Name}}</strong>
+      <a href="/masuk" class="linkbtn small switch-stall">Ganti Stan</a>
+    </div>
     <span class="muted small">{{.Tenant.Stall}}</span>
   </div>
   <div class="right">

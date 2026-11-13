@@ -1,0 +1,58 @@
+{{define "base"}}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Voucher Kantin UPITRA</title>
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="login-page">
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-icon-wrap finance-icon">
+        <!-- Icon: Chart / Finance -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="2" y="13" width="4" height="8" rx="1"/>
+          <rect x="9" y="9" width="4" height="12" rx="1"/>
+          <rect x="16" y="5" width="4" height="16" rx="1"/>
+          <path d="M2 7l5-5 5 5 7-7" stroke-width="2"/>
+        </svg>
+      </div>
+      <div class="login-badge finance-badge">Biro Keuangan</div>
+      <h1 class="login-title">Portal Keuangan</h1>
+      <p class="login-sub">Sistem Voucher Kantin UPITRA</p>
+    </div>
+
+    {{if .Error}}
+    <div class="login-flash-err" role="alert">
+      <svg class="icon-inline" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      {{.Error}}
+    </div>
+    {{end}}
+
+    <form method="post" action="/finance/masuk" class="login-form">
+      <div class="field-group">
+        <label for="username" class="field-label">Username</label>
+        <input id="username" name="username" type="text" class="field"
+               autocomplete="username" autocapitalize="none" spellcheck="false"
+               placeholder="contoh: admin.finance" required>
+      </div>
+      <div class="field-group">
+        <label for="password" class="field-label">Password</label>
+        <input id="password" name="password" type="password" class="field"
+               autocomplete="current-password" placeholder="••••••••" required>
+      </div>
+      <button class="btn primary login-btn finance-btn" type="submit">Masuk</button>
+    </form>
+
+    <div class="login-divider"><span>atau</span></div>
+    <a href="/auth/microsoft?role=finance" class="btn-ms">
+      <svg class="ms-icon" viewBox="0 0 21 21" aria-hidden="true"><rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/><rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/></svg>
+      Masuk dengan Akun Microsoft UPITRA
+    </a>
+    <p class="login-note">Hanya untuk Petugas Biro Keuangan UPITRA<br>Admin IT? <a href="/admin/masuk">Login di sini</a></p>
+  </div>
+</div>
+</body>
+</html>{{end}}

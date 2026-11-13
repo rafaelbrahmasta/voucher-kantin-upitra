@@ -6,7 +6,10 @@
   </div>
   <div class="right">
     <span class="muted small">{{.Tenant.Name}}</span>
-    <form method="post" action="/keluar" class="logout"><button class="linkbtn small" type="submit">Putuskan HP ini</button></form>
+    <div class="today-actions">
+      <a href="/masuk" class="linkbtn small switch-stall">Ganti Stan</a>
+      <form method="post" action="/keluar" class="logout"><button class="linkbtn small" type="submit">Putuskan HP ini</button></form>
+    </div>
   </div>
 </header>
 

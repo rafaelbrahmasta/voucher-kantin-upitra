@@ -1,0 +1,54 @@
+{{define "base"}}<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}} · Biro Keuangan UPITRA</title>
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/admin.css">
+</head>
+<body class="admin finance">
+<header class="nav nav-finance">
+  <div class="nav-brand">
+    <div class="nav-logo nav-logo-finance">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="13" width="4" height="8" rx="1"/>
+        <rect x="9" y="9" width="4" height="12" rx="1"/>
+        <rect x="16" y="5" width="4" height="16" rx="1"/>
+        <path d="M2 7l5-5 5 5 7-7"/>
+      </svg>
+    </div>
+    <div>
+      <strong class="brand brand-finance">Biro Keuangan <span>UPITRA</span></strong>
+      <span class="nav-sys">Sistem Voucher Kantin</span>
+    </div>
+  </div>
+  <nav aria-label="Menu utama keuangan">
+    <a href="/finance"{{if eq .Tab "ringkasan"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Ringkasan Kas
+    </a>
+    <a href="/finance/pencairan"{{if eq .Tab "pencairan"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+      Pencairan Tenant
+    </a>
+    <a href="/finance/transaksi"{{if eq .Tab "transaksi"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Detail Transaksi
+    </a>
+  </nav>
+  <div class="nav-right">
+    <span class="user-badge user-badge-finance">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <strong>{{if .UserName}}{{.UserName}}{{else}}Biro Keuangan{{end}}</strong>
+      <span class="nav-role">{{if .UserRoleDesc}}{{.UserRoleDesc}}{{else}}Biro Keuangan{{end}}</span>
+    </span>
+    <a href="/finance/keluar" class="link-logout link-logout-finance">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Keluar
+    </a>
+  </div>
+</header>
+<main class="wide">{{template "content" .}}</main>
+</body>
+</html>{{end}}

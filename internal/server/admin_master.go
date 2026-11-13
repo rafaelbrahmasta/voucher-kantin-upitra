@@ -15,7 +15,7 @@ import (
 
 // Pesan sukses yang boleh tampil lewat ?pesan=... (daftar tetap, tidak ada teks bebas).
 var flashText = map[string]string{
-	"tenant-dibuat":   "Tenant dibuat. Sekarang tambahkan menu dan buat kode koneksi HP.",
+	"tenant-dibuat":   "Stan kantin berhasil dibuat. Sekarang silakan tambahkan daftar menu makanan & minuman di bawah.",
 	"tenant-disimpan": "Perubahan tenant disimpan.",
 	"tenant-dihapus":  "Tenant dihapus.",
 	"perangkat-putus": "Semua HP tenant diputus dan kode lama dimatikan.",
@@ -23,6 +23,11 @@ var flashText = map[string]string{
 	"menu-disimpan":   "Menu disimpan.",
 	"menu-dihapus":    "Menu dihapus.",
 	"tenant-nonaktif": "Tenant dinonaktifkan dan semua HP-nya diputus.",
+	"staf-dibuat":     "Data dosen / staf baru berhasil ditambahkan.",
+	"staf-disimpan":   "Perubahan data dosen / staf berhasil disimpan.",
+	"staf-status":     "Status keaktifan dosen / staf berhasil diperbarui.",
+	"staf-dihapus":    "Data dosen / staf berhasil dihapus.",
+	"staf-gagal":      "Staf tidak dapat dihapus karena sudah memiliki riwayat voucher. Silakan nonaktifkan saja.",
 }
 
 const maxFormBytes = 8 << 10
@@ -81,13 +86,13 @@ func (s *Server) handleAdminTenants(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, "daftar tenant", err)
 		return
 	}
-	s.render(w, "admin_tenants", map[string]any{
+	s.renderAdmin(w, r, "admin_tenants", map[string]any{
 		"Title": "Tenant", "Tab": "tenant", "Rows": rows, "Flash": flashText[r.URL.Query().Get("pesan")],
 	})
 }
 
 func (s *Server) handleAdminTenantNew(w http.ResponseWriter, r *http.Request) {
-	s.render(w, "admin_tenant_new", map[string]any{"Title": "Tenant baru", "Tab": "tenant", "In": master.TenantInput{}})
+	s.renderAdmin(w, r, "admin_tenant_new", map[string]any{"Title": "Tenant baru", "Tab": "tenant", "In": master.TenantInput{}})
 }
 
 func (s *Server) handleAdminTenantCreate(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +104,7 @@ func (s *Server) handleAdminTenantCreate(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		if msg, ok := userMessage(err); ok {
 			w.WriteHeader(http.StatusUnprocessableEntity)
-			s.render(w, "admin_tenant_new", map[string]any{
+			s.renderAdmin(w, r, "admin_tenant_new", map[string]any{
 				"Title": "Tenant baru", "Tab": "tenant", "In": in, "Error": msg,
 			})
 			return
@@ -135,7 +140,7 @@ func (s *Server) tenantPage(w http.ResponseWriter, r *http.Request, id int64, ex
 	for k, v := range extra {
 		data[k] = v
 	}
-	s.render(w, "admin_tenant", data)
+	s.renderAdmin(w, r, "admin_tenant", data)
 }
 
 func (s *Server) handleAdminTenantShow(w http.ResponseWriter, r *http.Request) {

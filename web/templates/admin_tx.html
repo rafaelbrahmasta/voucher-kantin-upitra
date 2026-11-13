@@ -24,8 +24,8 @@
 </form>
 
 {{if .Rows}}
-<div class="scroll">
-<table>
+<div class="data-table-wrap">
+<table class="data-table">
   <thead><tr><th>Tanggal</th><th>Jam</th><th>Staf</th><th>Unit</th><th>Tenant</th><th>Menu</th><th class="r">Nilai</th><th>Status</th></tr></thead>
   <tbody>
     {{range .Rows}}
@@ -33,10 +33,10 @@
       <td class="nowrap">{{tgl .At}}</td>
       <td class="nowrap">{{jam .At}}</td>
       <td><strong>{{.Staff}}</strong></td>
-      <td>{{.Unit}}</td>
+      <td><span class="unit-tag">{{.Unit}}</span></td>
       <td>{{.Tenant}}</td>
       <td class="small">{{if .Items}}{{.Items}}{{else}}<span class="muted">–</span>{{end}}</td>
-      <td class="r nowrap">{{rupiah .Amount}}</td>
+      <td class="r nowrap"><strong>{{rupiah .Amount}}</strong></td>
       <td>{{if .Voided}}<span class="tag tag-void">Dibatalkan</span>{{else}}<span class="tag tag-ok">Terpakai</span>{{end}}</td>
     </tr>
     {{end}}

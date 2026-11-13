@@ -20,6 +20,14 @@ type MailConfig struct {
 	Pass   string
 }
 
+type MSConfig struct {
+	TenantID     string
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	MailFrom     string // shared mailbox atau UPN pengirim, mis. voucher@upitra.ac.id
+}
+
 type Config struct {
 	Env         string // "dev" atau "prod"
 	Addr        string
@@ -28,6 +36,7 @@ type Config struct {
 	ShortKey    []byte
 	Location    *time.Location
 	Mail        MailConfig
+	Microsoft   MSConfig
 
 	// Hanya dipakai di mode dev sampai login tenant selesai dibangun.
 	DevTenantID int64
@@ -116,6 +125,14 @@ func Load() (Config, error) {
 		Port:   int(port),
 		User:   os.Getenv("SMTP_USER"),
 		Pass:   os.Getenv("SMTP_PASS"),
+	}
+
+	c.Microsoft = MSConfig{
+		TenantID:     os.Getenv("MS_TENANT_ID"),
+		ClientID:     os.Getenv("MS_CLIENT_ID"),
+		ClientSecret: os.Getenv("MS_CLIENT_SECRET"),
+		RedirectURI:  getenv("MS_REDIRECT_URI", "http://localhost:8080/auth/microsoft/callback"),
+		MailFrom:     os.Getenv("MS_MAIL_FROM"), // mis. voucher@upitra.ac.id
 	}
 
 	if c.DevTenantID, err = getint("DEV_TENANT_ID", 1); err != nil {

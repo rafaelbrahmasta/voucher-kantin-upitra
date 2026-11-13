@@ -581,12 +581,11 @@ func OrderTotal(lines []PricedLine) int {
 	return t
 }
 
-// RecordOrder menyimpan menu untuk voucher yang baru saja dipakai tenant itu
-// pada waktu usedAt. Satu perintah SQL, jadi semua baris masuk atau tidak sama sekali.
-// Mengembalikan false bila vouchernya tidak ditemukan.
-func (s *Service) RecordOrder(ctx context.Context, tenantID int64, usedAt time.Time, lines []PricedLine) (bool, error) {
+// RecordOrder menyimpan menu untuk voucher yang baru saja dipakai.
+// Satu perintah SQL, jadi semua baris masuk atau tidak sama sekali.
+func (s *Service) RecordOrder(ctx context.Context, voucherID int64, lines []PricedLine) error {
 	if len(lines) == 0 {
-		return true, nil
+		return nil
 	}
 	ids := make([]int64, len(lines))
 	names := make([]string, len(lines))
@@ -595,18 +594,182 @@ func (s *Service) RecordOrder(ctx context.Context, tenantID int64, usedAt time.T
 	for i, l := range lines {
 		ids[i], names[i], prices[i], qtys[i] = l.MenuID, l.Name, int32(l.Price), int32(l.Qty)
 	}
-	tag, err := s.db.Exec(ctx, `
-WITH v AS (
-  SELECT id FROM vouchers
-   WHERE used_by_tenant_id = $1 AND status = 'used' AND used_at = $2
-   ORDER BY id DESC LIMIT 1
-)
+	_, err := s.db.Exec(ctx, `
 INSERT INTO voucher_items (voucher_id, menu_item_id, name, price, qty)
-SELECT v.id, x.mid, x.name, x.price, x.qty
-  FROM v, unnest($3::bigint[], $4::text[], $5::int[], $6::int[]) AS x(mid, name, price, qty)`,
-		tenantID, usedAt, ids, names, prices, qtys)
-	if err != nil {
-		return false, err
+SELECT $1, x.*
+  FROM unnest($2::bigint[], $3::text[], $4::int[], $5::int[]) AS x(mid, name, price, qty)`,
+		voucherID, ids, names, prices, qtys)
+	return err
+}
+
+// ─────────────────────────────────────────
+// Data Dosen & Staf Penerima Voucher Kampus
+// ─────────────────────────────────────────
+
+type StaffRow struct {
+	ID        int64
+	NIP       string
+	Name      string
+	Email     string
+	Unit      string
+	IsActive  bool
+	CreatedAt time.Time
+}
+
+type StaffInput struct {
+	NIP      string
+	Name     string
+	Email    string
+	Unit     string
+	IsActive bool
+}
+
+var (
+	ErrStaffInUse = errors.New("staf sudah memiliki riwayat voucher; nonaktifkan saja, jangan dihapus")
+)
+
+func (s *Service) ListStaff(ctx context.Context, q string) ([]StaffRow, error) {
+	q = strings.TrimSpace(q)
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	if q != "" {
+		like := "%" + strings.ToLower(q) + "%"
+		const sql = `SELECT id, COALESCE(nip, ''), name, email, unit, is_active, created_at
+		               FROM staff
+		              WHERE LOWER(name) LIKE $1 OR LOWER(COALESCE(nip, '')) LIKE $1 OR LOWER(email) LIKE $1 OR LOWER(unit) LIKE $1
+		              ORDER BY is_active DESC, name ASC`
+		rows, err = s.db.Query(ctx, sql, like)
+	} else {
+		const sql = `SELECT id, COALESCE(nip, ''), name, email, unit, is_active, created_at
+		               FROM staff
+		              ORDER BY is_active DESC, name ASC`
+		rows, err = s.db.Query(ctx, sql)
 	}
-	return tag.RowsAffected() > 0, nil
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []StaffRow
+	for rows.Next() {
+		var r StaffRow
+		if err := rows.Scan(&r.ID, &r.NIP, &r.Name, &r.Email, &r.Unit, &r.IsActive, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	return list, rows.Err()
+}
+
+func (s *Service) GetStaff(ctx context.Context, id int64) (StaffRow, error) {
+	const sql = `SELECT id, COALESCE(nip, ''), name, email, unit, is_active, created_at
+	               FROM staff
+	              WHERE id = $1`
+	var r StaffRow
+	err := s.db.QueryRow(ctx, sql, id).Scan(&r.ID, &r.NIP, &r.Name, &r.Email, &r.Unit, &r.IsActive, &r.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return StaffRow{}, ErrNotFound
+	}
+	return r, err
+}
+
+func (s *Service) CreateStaff(ctx context.Context, in StaffInput) (int64, error) {
+	name, err := cleanText(in.Name, "Nama lengkap", 150)
+	if err != nil {
+		return 0, err
+	}
+	unit, err := cleanText(in.Unit, "Unit / Fakultas", 100)
+	if err != nil {
+		return 0, err
+	}
+	email := strings.TrimSpace(strings.ToLower(in.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		return 0, ValidationError("Email kampus tidak valid")
+	}
+	nip := strings.TrimSpace(in.NIP)
+
+	const sql = `INSERT INTO staff (nip, name, email, unit, is_active)
+	             VALUES (NULLIF($1, ''), $2, $3, $4, $5)
+	             RETURNING id`
+	var id int64
+	err = s.db.QueryRow(ctx, sql, nip, name, email, unit, in.IsActive).Scan(&id)
+	if err != nil {
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && pe.Code == "23505" {
+			if strings.Contains(pe.ConstraintName, "email") {
+				return 0, ValidationError("Email " + email + " sudah terdaftar")
+			}
+			if strings.Contains(pe.ConstraintName, "nip") {
+				return 0, ValidationError("NIP " + nip + " sudah terdaftar")
+			}
+			return 0, ErrDuplicate
+		}
+		return 0, err
+	}
+	return id, nil
+}
+
+func (s *Service) UpdateStaff(ctx context.Context, id int64, in StaffInput) error {
+	name, err := cleanText(in.Name, "Nama lengkap", 150)
+	if err != nil {
+		return err
+	}
+	unit, err := cleanText(in.Unit, "Unit / Fakultas", 100)
+	if err != nil {
+		return err
+	}
+	email := strings.TrimSpace(strings.ToLower(in.Email))
+	if email == "" || !strings.Contains(email, "@") {
+		return ValidationError("Email kampus tidak valid")
+	}
+	nip := strings.TrimSpace(in.NIP)
+
+	const sql = `UPDATE staff
+	                SET nip = NULLIF($1, ''), name = $2, email = $3, unit = $4, is_active = $5, updated_at = now()
+	              WHERE id = $6`
+	tag, err := s.db.Exec(ctx, sql, nip, name, email, unit, in.IsActive, id)
+	if err != nil {
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && pe.Code == "23505" {
+			if strings.Contains(pe.ConstraintName, "email") {
+				return ValidationError("Email " + email + " sudah terdaftar pada staf lain")
+			}
+			return ErrDuplicate
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Service) ToggleStaff(ctx context.Context, id int64) error {
+	const sql = `UPDATE staff SET is_active = NOT is_active, updated_at = now() WHERE id = $1`
+	tag, err := s.db.Exec(ctx, sql, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Service) DeleteStaff(ctx context.Context, id int64) error {
+	const sql = `DELETE FROM staff WHERE id = $1`
+	tag, err := s.db.Exec(ctx, sql, id)
+	if err != nil {
+		var pe *pgconn.PgError
+		if errors.As(err, &pe) && pe.Code == "23503" {
+			return ErrStaffInUse
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

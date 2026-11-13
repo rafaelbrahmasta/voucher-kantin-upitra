@@ -9,13 +9,51 @@
 </head>
 <body class="admin">
 <header class="nav">
-  <strong class="brand">Voucher Kantin <span>UPITRA</span></strong>
+  <div class="nav-brand">
+    <div class="nav-logo">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 2L3 7v5c0 5.25 3.75 10.15 9 11.25C17.25 22.15 21 17.25 21 12V7l-9-5z"/>
+        <path d="M9 12l2 2 4-4"/>
+      </svg>
+    </div>
+    <div>
+      <strong class="brand">Admin Super <span>IT</span></strong>
+      <span class="nav-sys">Voucher Kantin UPITRA</span>
+    </div>
+  </div>
   <nav aria-label="Menu utama">
-    <a href="/admin"{{if eq .Tab "ringkasan"}} aria-current="page"{{end}}>Ringkasan</a>
-    <a href="/admin/transaksi"{{if eq .Tab "transaksi"}} aria-current="page"{{end}}>Transaksi</a>
-    <a href="/admin/tenant"{{if eq .Tab "tenant"}} aria-current="page"{{end}}>Tenant &amp; menu</a>
+    <a href="/admin/tenant"{{if eq .Tab "tenant"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Tenant &amp; Menu
+    </a>
+    <a href="/admin/staf"{{if eq .Tab "staf"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+      Dosen &amp; Staf
+    </a>
+    <a href="/admin/pengguna"{{if eq .Tab "pengguna"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+      Pengguna
+    </a>
+    <a href="/admin"{{if eq .Tab "ringkasan"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Ringkasan
+    </a>
+    <a href="/admin/transaksi"{{if eq .Tab "transaksi"}} aria-current="page"{{end}}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Transaksi
+    </a>
   </nav>
-  <span class="muted small devnote">Mode dev, tanpa login</span>
+  <div class="nav-right">
+    <span class="user-badge">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <strong>{{if .UserName}}{{.UserName}}{{else}}Admin IT{{end}}</strong>
+      <span class="nav-role">{{if .UserRoleDesc}}{{.UserRoleDesc}}{{else}}Admin Super IT{{end}}</span>
+    </span>
+    <a href="/admin/keluar" class="link-logout">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Keluar
+    </a>
+  </div>
 </header>
 <main class="wide">{{template "content" .}}</main>
 </body>

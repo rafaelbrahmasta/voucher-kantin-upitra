@@ -21,13 +21,14 @@ func NewService(db Querier) *Service { return &Service{db: db} }
 
 // ScanResult adalah respons ke tenant. Result: ok | used | expired | void | invalid.
 type ScanResult struct {
-	Result string     `json:"result"`
-	Staff  string     `json:"staff,omitempty"`
-	Unit   string     `json:"unit,omitempty"`
-	Amount int        `json:"amount,omitempty"`
-	At     *time.Time `json:"at,omitempty"`
-	UsedAt *time.Time `json:"usedAt,omitempty"`
-	Tenant string     `json:"tenant,omitempty"`
+	VoucherID int64      `json:"-"`
+	Result    string     `json:"result"`
+	Staff     string     `json:"staff,omitempty"`
+	Unit      string     `json:"unit,omitempty"`
+	Amount    int        `json:"amount,omitempty"`
+	At        *time.Time `json:"at,omitempty"`
+	UsedAt    *time.Time `json:"usedAt,omitempty"`
+	Tenant    string     `json:"tenant,omitempty"`
 }
 
 // Satu UPDATE bersyarat. PostgreSQL mengunci baris saat update, jadi jika dua
@@ -41,9 +42,9 @@ WITH u AS (
    WHERE %s
      AND status = 'issued'
      AND now() BETWEEN valid_from AND valid_until
-  RETURNING staff_id, amount, used_at
+  RETURNING id, staff_id, amount, used_at
 )
-SELECT s.name, s.unit, u.amount, u.used_at
+SELECT u.id, s.name, s.unit, u.amount, u.used_at
   FROM u JOIN staff s ON s.id = u.staff_id`
 
 // Dijalankan hanya jika UPDATE tidak mengembalikan baris, untuk memilih pesan.
@@ -78,7 +79,7 @@ func (s *Service) ScanShortCode(ctx context.Context, codeHash []byte, date time.
 func (s *Service) scan(ctx context.Context, updSQL string, updArgs []any, diagSQL string, diagArgs []any) (ScanResult, error) {
 	var r ScanResult
 	var at time.Time
-	err := s.db.QueryRow(ctx, updSQL, updArgs...).Scan(&r.Staff, &r.Unit, &r.Amount, &at)
+	err := s.db.QueryRow(ctx, updSQL, updArgs...).Scan(&r.VoucherID, &r.Staff, &r.Unit, &r.Amount, &at)
 	if err == nil {
 		r.Result, r.At = "ok", &at
 		return r, nil

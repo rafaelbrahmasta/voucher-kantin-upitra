@@ -1,0 +1,173 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [5 0 R 7 0 R 9 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 6 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+6 0 obj
+<< /Length 3956 >>
+stream
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 0.00 800.00 595.28 41.89 re f
+BT /F2 11.00 Tf 1.00 1.00 1.00 rg 35.00 815.00 Td (SISTEM VOUCHER KANTIN UPITRA) Tj ET
+BT /F1 9.00 Tf 0.90 0.95 1.00 rg 410.00 815.00 Td (PANDUAN OPERASIONAL & WORKFLOW) Tj ET
+0.80 w 0.85 0.88 0.92 RG 35.00 45.00 m 560.00 45.00 l s
+BT /F1 8.00 Tf 0.50 0.55 0.60 rg 35.00 32.00 Td (Universitas PGRI Perintis Trunojoyo - Biro Keuangan & Divisi TI) Tj ET
+BT /F2 8.00 Tf 0.30 0.35 0.40 rg 500.00 32.00 Td (Halaman 1 dari 3) Tj ET
+BT /F2 20.00 Tf 0.11 0.23 0.45 rg 35.00 755.00 Td (Panduan Koneksi HP Kantin & Alur Kerja) Tj ET
+BT /F1 12.00 Tf 0.35 0.42 0.52 rg 35.00 735.00 Td (Alur operasional digitalisasi subsidi makan dosen/staf dari pairing HP hingga pencairan) Tj ET
+0.8 w 0.95 0.97 1.00 rg 0.75 0.84 0.98 RG 35.00 640.00 525.00 75.00 re B
+BT /F2 11.00 Tf 0.11 0.31 0.85 rg 48.00 692.00 Td (PRINSIP UTAMA: PELAKU USAHA KANTIN TERIMA BERSIH) Tj ET
+BT /F1 9.50 Tf 0.20 0.25 0.32 rg 48.00 674.00 Td (Pedagang TIDAK perlu membuat akun, TIDAK perlu mengelola admin, dan TIDAK membuat pembukuan manual.) Tj ET
+BT /F1 9.50 Tf 0.20 0.25 0.32 rg 48.00 656.00 Td (HP pedagang hanya berfungsi sebagai alat scan cepat dan penampil nota klaim digital yang siap dicairkan.) Tj ET
+BT /F2 14.00 Tf 0.11 0.23 0.45 rg 35.00 608.00 Td (Bagian 1: Cara Menghubungkan HP Pedagang Kantin \(Cukup 1x\)) Tj ET
+1.50 w 0.11 0.31 0.85 RG 35.00 600.00 m 560.00 600.00 l s
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 485.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 545.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 552.00 Td (1) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 555.00 Td (Admin IT Menerbitkan Kode Aktivasi) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 538.00 Td (Admin IT login ke Portal Admin di localhost:8080/admin/masuk.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 522.00 Td (Buka menu 'Tenant & menu' -> pilih stan kantin \(misal: Stan 1 Kantin Bu Sri\).) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 506.00 Td (Klik 'Buat kode aktivasi'. Di layar Admin muncul Kode 10-huruf \(misal: 7M4QX-P8RTK\) & QR Aktivasi.) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 375.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 435.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 442.00 Td (2) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 445.00 Td (Pedagang Membuka Halaman Aktivasi di HP) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 428.00 Td (Pedagang membuka browser Google Chrome / Safari di HP masing-masing.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 412.00 Td (Ketikkan alamat: http://[IP-KAMPUS]:8080/masuk) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 396.00 Td (Di layar HP pedagang akan tampil formulir 'Hubungkan HP' dengan satu kolom isian kode.) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 265.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 325.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 332.00 Td (3) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 335.00 Td (Ketikkan Kode Aktivasi / Scan QR) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 318.00 Td (Ketik kode 10-huruf dari admin \(huruf besar/kecil otomatis disesuaikan\), lalu klik 'Hubungkan'.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 302.00 Td (Atau jika ada kamera, cukup scan QR aktivasi dari layar Admin IT.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 286.00 Td (Setelah terhubung, sistem menyimpan cookie sesi aman \(30 hari\). HP pedagang langsung siap dipakai!) Tj ET
+0.8 w 0.99 0.98 0.93 rg 0.95 0.85 0.60 RG 35.00 175.00 525.00 75.00 re B
+BT /F2 10.50 Tf 0.70 0.45 0.05 rg 48.00 227.00 Td (CATATAN KEAMANAN HP:) Tj ET
+BT /F1 9.00 Tf 0.30 0.30 0.30 rg 48.00 210.00 Td (- HP pedagang diingat secara permanen. Pedagang TIDAK PERLU login ulang setiap hari.) Tj ET
+BT /F1 9.00 Tf 0.30 0.30 0.30 rg 48.00 195.00 Td (- Jika HP pedagang hilang atau ganti baru, Admin IT cukup klik 'Putuskan HP' di dashboard.) Tj ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 8 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+8 0 obj
+<< /Length 3933 >>
+stream
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 0.00 800.00 595.28 41.89 re f
+BT /F2 11.00 Tf 1.00 1.00 1.00 rg 35.00 815.00 Td (SISTEM VOUCHER KANTIN UPITRA) Tj ET
+BT /F1 9.00 Tf 0.90 0.95 1.00 rg 410.00 815.00 Td (PANDUAN OPERASIONAL & WORKFLOW) Tj ET
+0.80 w 0.85 0.88 0.92 RG 35.00 45.00 m 560.00 45.00 l s
+BT /F1 8.00 Tf 0.50 0.55 0.60 rg 35.00 32.00 Td (Universitas PGRI Perintis Trunojoyo - Biro Keuangan & Divisi TI) Tj ET
+BT /F2 8.00 Tf 0.30 0.35 0.40 rg 500.00 32.00 Td (Halaman 2 dari 3) Tj ET
+BT /F2 14.00 Tf 0.11 0.23 0.45 rg 35.00 755.00 Td (Bagian 2: Alur Transaksi Harian \(Dosen/Staf ke Kantin\)) Tj ET
+1.50 w 0.11 0.31 0.85 RG 35.00 747.00 m 560.00 747.00 l s
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 635.00 525.00 95.00 re B
+0.09 0.63 0.36 rg 0.07 0.50 0.29 RG 48.00 695.00 24.00 24.00 re f
+BT /F2 10.00 Tf 1.00 1.00 1.00 rg 54.00 702.00 Td (09.55) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 705.00 Td (Tahap A: Penerbitan Voucher Otomatis ke Email Kampus) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 688.00 Td (Setiap hari kerja pukul 09.55 WIB, sistem mengirimkan voucher ke email staf \(@upitra.ac.id\).) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 672.00 Td (Email memuat QR Code digital + Kode Cadangan 8 Huruf \(misal: K7M4-QXP8\).) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 656.00 Td (Nilai voucher: Rp5.000, masa berlaku pukul 10.00 s/d 16.00 WIB di hari yang sama.) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 525.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 585.00 24.00 24.00 re f
+BT /F2 10.00 Tf 1.00 1.00 1.00 rg 54.00 592.00 Td (SIANG) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 595.00 Td (Tahap B: Dosen / Staf Memesan Makanan di Kantin) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 578.00 Td (Staf datang ke stan kantin dan menunjukkan QR Code voucher dari email di layar HP-nya.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 562.00 Td (Pedagang membuka halaman scanner: http://[IP-KAMPUS]:8080/scan di HP pedagang.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 546.00 Td (Pedagang menekan tombol 'Pilih menu' -> tambah makanan/minuman yang dipesan \(mis: Soto Rp12.000\).) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 395.00 525.00 115.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 475.00 24.00 24.00 re f
+BT /F2 10.00 Tf 1.00 1.00 1.00 rg 54.00 482.00 Td (SCAN) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 485.00 Td (Tahap C: Pemindaian Kamera / Ketik Kode Cadangan) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 468.00 Td (Pedagang mengarahkan kamera HP ke QR Code staf. Sistem memvalidasi instan.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 452.00 Td (Jika kamera bermasalah / layar staf retak: Klik tombol 'Ketik kode cadangan' -> ketik 8 huruf.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 436.00 Td (Sistem secara otomatis mengaitkan pesanan menu ke VoucherID yang bersangkutan.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 420.00 Td (Struk hijau valid muncul: Potongan subsidi Rp5.000 dihitung, sisa tunai \(jika ada\) dibayar oleh staf.) Tj ET
+0.8 w 0.96 0.97 0.99 rg 0.82 0.85 0.90 RG 35.00 225.00 525.00 150.00 re B
+BT /F2 11.00 Tf 0.11 0.23 0.45 rg 48.00 350.00 Td (SIMULASI CONTOH PERHITUNGAN DI LAYAR HP PEDAGANG:) Tj ET
+0.80 w 0.82 0.85 0.90 RG 48.00 342.00 m 545.00 342.00 l s
+BT /F1 10.00 Tf 0.20 0.25 0.30 rg 48.00 324.00 Td (- Pesanan Staf        : 1x Nasi Soto \(Rp12.000\) + 1x Es Teh \(Rp3.000\)) Tj ET
+BT /F2 10.00 Tf 0.20 0.25 0.30 rg 48.00 306.00 Td (- Total Tagihan Menu  : Rp15.000) Tj ET
+BT /F2 10.00 Tf 0.09 0.63 0.36 rg 48.00 288.00 Td (- Subsidi Voucher     : - Rp5.000  \(Otomatis tercatat masuk nota klaim kantin\)) Tj ET
+BT /F2 10.00 Tf 0.85 0.20 0.20 rg 48.00 270.00 Td (- Sisa Bayar Tunai    : Rp10.000  \(Staf bayar tunai / QRIS langsung ke pedagang\)) Tj ET
+BT /F1 9.00 Tf 0.45 0.50 0.55 rg 48.00 245.00 Td (* Pedagang langsung menerima tunai Rp10.000 hari itu, dan mengklaim Rp5.000 ke Biro Keuangan.) Tj ET
+
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Contents 10 0 R /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> >>
+endobj
+10 0 obj
+<< /Length 3949 >>
+stream
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 0.00 800.00 595.28 41.89 re f
+BT /F2 11.00 Tf 1.00 1.00 1.00 rg 35.00 815.00 Td (SISTEM VOUCHER KANTIN UPITRA) Tj ET
+BT /F1 9.00 Tf 0.90 0.95 1.00 rg 410.00 815.00 Td (PANDUAN OPERASIONAL & WORKFLOW) Tj ET
+0.80 w 0.85 0.88 0.92 RG 35.00 45.00 m 560.00 45.00 l s
+BT /F1 8.00 Tf 0.50 0.55 0.60 rg 35.00 32.00 Td (Universitas PGRI Perintis Trunojoyo - Biro Keuangan & Divisi TI) Tj ET
+BT /F2 8.00 Tf 0.30 0.35 0.40 rg 500.00 32.00 Td (Halaman 3 dari 3) Tj ET
+BT /F2 14.00 Tf 0.11 0.23 0.45 rg 35.00 755.00 Td (Bagian 3: Alur Rekapitulasi & Pencairan Kas ke Biro Keuangan) Tj ET
+1.50 w 0.11 0.31 0.85 RG 35.00 747.00 m 560.00 747.00 l s
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 635.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 695.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 702.00 Td (1) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 705.00 Td (Pedagang Mengecek Nota Klaim di Tab 'Hari Ini') Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 688.00 Td (Di sore hari setelah pelayanan tutup, pedagang membuka http://[IP-KAMPUS]:8080/today.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 672.00 Td (Muncul daftar semua voucher yang berhasil di-scan beserta jam dan nama staf.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 656.00 Td (Tertera total klaim kas, misal: '25 Voucher = Rp125.000'. Ini adalah nota klaim resmi.) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 525.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 585.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 592.00 Td (2) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 595.00 Td (Pedagang Mengajukan Klaim ke Biro Keuangan) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 578.00 Td (Pedagang mendatangi bagian kasir Biro Keuangan dan menunjukkan layar HP /today tadi.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 562.00 Td (Bisa dilakukan harian setiap sore, atau mingguan sesuai kesepakatan universitas.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 546.00 Td (Pedagang tidak perlu menyerahkan sobekan kertas/bon manual apa pun.) Tj ET
+0.8 w 0.98 0.99 1.00 rg 0.88 0.91 0.95 RG 35.00 415.00 525.00 95.00 re B
+0.11 0.31 0.85 rg 0.09 0.25 0.68 RG 48.00 475.00 24.00 24.00 re f
+BT /F2 12.00 Tf 1.00 1.00 1.00 rg 56.00 482.00 Td (3) Tj ET
+BT /F2 11.00 Tf 0.12 0.18 0.30 rg 82.00 485.00 Td (Biro Keuangan Mencairkan Dana Reimbursement) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 468.00 Td (Petugas Keuangan login di localhost:8080/finance/masuk dan buka menu 'Pencairan Tenant'.) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 452.00 Td (Data sistem 100% otomatis cocok dengan HP pedagang \(nomor rekening bank stan sudah tertera\).) Tj ET
+BT /F1 9.50 Tf 0.25 0.30 0.38 rg 82.00 436.00 Td (Kasir mencairkan uang tunai / transfer ke rekening pedagang, lalu menandai transaksi selesai.) Tj ET
+BT /F2 14.00 Tf 0.11 0.23 0.45 rg 35.00 385.00 Td (Bagian 4: Kesimpulan Nilai Tambah Sistem) Tj ET
+1.50 w 0.11 0.31 0.85 RG 35.00 377.00 m 560.00 377.00 l s
+0.8 w 0.95 0.98 0.95 rg 0.70 0.88 0.75 RG 35.00 175.00 525.00 185.00 re B
+BT /F2 11.00 Tf 0.09 0.50 0.25 rg 48.00 338.00 Td (KESIMPULAN & MANFAAT SISTEM VOUCHER KANTIN UPITRA:) Tj ET
+BT /F1 9.50 Tf 0.15 0.20 0.25 rg 48.00 318.00 Td (1. Akurasi 100% Bebas Selisih: Tidak ada risiko kecurangan kupon palsu atau klaim fiktif ganda.) Tj ET
+BT /F1 9.50 Tf 0.15 0.20 0.25 rg 48.00 300.00 Td (2. Ramah Pelaku Usaha: Pedagang tidak dituntut keahlian komputer; cukup pakai HP sendiri.) Tj ET
+BT /F1 9.50 Tf 0.15 0.20 0.25 rg 48.00 282.00 Td (3. Transparansi Finansial: Biro Keuangan memiliki Donut Chart & Rekap real-time untuk audit kas.) Tj ET
+BT /F1 9.50 Tf 0.15 0.20 0.25 rg 48.00 264.00 Td (4. Pelacakan Menu & Konsumsi: Makanan dan minuman yang disubsidi tercatat rapi per VoucherID.) Tj ET
+BT /F1 9.50 Tf 0.15 0.20 0.25 rg 48.00 246.00 Td (5. Operasional Mandiri & Efisien: Seluruh proses penerbitan voucher berjalan otomatis via sistem.) Tj ET
+
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000272 00000 n 
+0000000414 00000 n 
+0000004422 00000 n 
+0000004564 00000 n 
+0000008549 00000 n 
+0000008692 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+12694
+%%EOF

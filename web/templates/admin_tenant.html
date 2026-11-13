@@ -41,19 +41,25 @@
             <input id="bank_account" class="field" name="bank_account" value="{{.T.BankAccount}}" inputmode="numeric" maxlength="34"></div>
         </div>
       <label class="check"><input type="checkbox" name="active" value="1"{{if .T.Active}} checked{{end}}> Tenant aktif</label>
-      <p class="muted small">Menonaktifkan tenant juga memutus semua HP-nya dan menyembunyikannya dari daftar filter.</p>
+      <p class="muted small">Menonaktifkan tenant akan menyembunyikan stan dari halaman kasir dan daftar filter.</p>
       <div><button class="btn-s" type="submit">Simpan perubahan</button></div>
     </form>
   </section>
 
   <section class="panel">
-    <h2>Koneksi HP untuk scan</h2>
-    <p class="muted small">{{if .T.HasCode}}Ada kode aktif. Kode asli tidak bisa dilihat lagi; buat kode baru bila hilang.{{else}}Belum ada kode. Buat kode lalu masukkan di HP tenant.{{end}}</p>
-    <div class="actions-row">
-      <form method="post" action="/admin/tenant/{{.T.ID}}/kode"><button class="btn-s" type="submit"{{if not .T.Active}} disabled{{end}}>{{if .T.HasCode}}Buat kode baru{{else}}Buat kode koneksi{{end}}</button></form>
-      <form method="post" action="/admin/tenant/{{.T.ID}}/putus"><button class="btn-d" type="submit">Putuskan semua HP</button></form>
+    <h2>Akses Kasir Scan</h2>
+    <p class="muted small">Stan ini otomatis terdaftar di halaman kasir <code>/masuk</code>. Pedagang stan tinggal memilih stan ini untuk langsung mulai men-scan voucher makan.</p>
+    <div class="cashier-box">
+      <div>
+        <span class="small muted">Status di Kasir Scan:</span><br>
+        <span class="cashier-ready">{{if .T.Active}}Siap Digunakan (Aktif){{else}}Stan Nonaktif{{end}}</span>
+      </div>
+      <form method="post" action="/masuk/pilih" target="_blank" class="m-0">
+        <input type="hidden" name="tenant_id" value="{{.T.ID}}">
+        <button type="submit" class="btn-s btn-open-cashier">Buka Kasir Stan Ini ↗</button>
+      </form>
     </div>
-    <p class="muted small">Kode baru mematikan kode lama, tetapi HP yang sudah tersambung tetap bisa dipakai. Untuk HP hilang atau berganti tangan, pakai <em>Putuskan semua HP</em>.</p>
+    <p class="muted small mt-sm">Pedagang tidak perlu memasukkan kode atau password apa pun. Cukup pilih nama stan pada halaman utama kasir.</p>
   </section>
 </div>
 

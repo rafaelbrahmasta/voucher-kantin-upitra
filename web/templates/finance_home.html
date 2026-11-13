@@ -1,0 +1,141 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>Ringkasan Kas Keuangan</h1>
+    <p class="muted">{{.DateLabel}}{{if .IsToday}} · diperbarui {{.Updated}}{{end}}</p>
+  </div>
+  <form method="get" class="inline">
+    <label for="tanggal" class="muted small">Tanggal</label>
+    <input id="tanggal" class="field" type="date" name="tanggal" value="{{.Date}}">
+    <button class="btn-s" type="submit">Tampilkan</button>
+  </form>
+</div>
+
+{{if eq .Sum.Issued 0}}
+<div class="emptybox">
+  <strong>Belum ada voucher yang diterbitkan untuk tanggal ini.</strong>
+  <p>Pilih tanggal operasional lain menggunakan filter di atas.</p>
+</div>
+{{else}}
+<dl class="stats stats-5">
+  <div>
+    <dt>Anggaran Terbit</dt>
+    <dd class="money">{{rupiah .BudgetIssued}}</dd>
+    <dd class="sub">{{.Sum.Issued}} voucher terbit</dd>
+  </div>
+  <div>
+    <dt>Kewajiban Kas (Terpakai)</dt>
+    <dd class="money">{{rupiah .BudgetUsed}}</dd>
+    <dd class="sub">{{.Sum.Used}} voucher dipakai</dd>
+  </div>
+  <div>
+    <dt>Efisiensi (Hangus)</dt>
+    <dd>{{rupiah .BudgetExpired}}</dd>
+    <dd class="sub">{{.Unused}} voucher tidak dipakai</dd>
+  </div>
+  <div>
+    <dt>Voucher Void</dt>
+    <dd>{{rupiah .BudgetVoid}}</dd>
+    <dd class="sub">{{.Sum.Void}} voucher dibatalkan</dd>
+  </div>
+  <div>
+    <dt>Realisasi Anggaran</dt>
+    <dd>{{.Pct}}%</dd>
+    <dd class="sub">{{.Sum.Inactive}} staf nonaktif</dd>
+  </div>
+</dl>
+
+<div class="cols">
+  <section class="panel">
+    <h2>Komposisi Serapan Anggaran Hari Ini</h2>
+    <p class="muted small">Grafik proporsi kas: terpakai, hangus, dan dibatalkan</p>
+    <div class="donut-container">
+      <svg viewBox="0 0 100 100" class="donut-svg" aria-label="Grafik Donut Serapan Kas">
+        <circle cx="50" cy="50" r="38" class="donut-bg" stroke-width="14" fill="none" />
+        <circle cx="50" cy="50" r="38" class="donut-seg seg-used" stroke-width="14" fill="none"
+                stroke-dasharray="{{.DashUsed}} 238.7" stroke-dashoffset="0" />
+        <circle cx="50" cy="50" r="38" class="donut-seg seg-expired" stroke-width="14" fill="none"
+                stroke-dasharray="{{.DashExpired}} 238.7" stroke-dashoffset="{{.OffsetExpired}}" />
+        <circle cx="50" cy="50" r="38" class="donut-seg seg-void" stroke-width="14" fill="none"
+                stroke-dasharray="{{.DashVoid}} 238.7" stroke-dashoffset="{{.OffsetVoid}}" />
+        <text x="50" y="47" class="donut-val">{{.Pct}}%</text>
+        <text x="50" y="61" class="donut-lbl">Realisasi</text>
+      </svg>
+      <div class="chart-legend">
+        <div class="legend-row">
+          <span class="legend-dot dot-used"></span>
+          <div class="legend-info">
+            <span class="legend-title">Kas Terpakai ({{.PctUsed}}%)</span>
+            <span class="legend-money">{{rupiah .BudgetUsed}}</span>
+          </div>
+        </div>
+        <div class="legend-row">
+          <span class="legend-dot dot-expired"></span>
+          <div class="legend-info">
+            <span class="legend-title">Efisiensi / Hangus ({{.PctExpired}}%)</span>
+            <span class="legend-money">{{rupiah .BudgetExpired}}</span>
+          </div>
+        </div>
+        <div class="legend-row">
+          <span class="legend-dot dot-void"></span>
+          <div class="legend-info">
+            <span class="legend-title">Voucher Void ({{.PctVoid}}%)</span>
+            <span class="legend-money">{{rupiah .BudgetVoid}}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="head">
+      <div>
+        <h2>Grafik Omzet &amp; Beban Kas per Stan</h2>
+        <p class="muted small">Peringkat stan dengan penukaran voucher terbanyak</p>
+      </div>
+      <a class="btn-o" href="/finance/pencairan?tanggal={{.Date}}">Pencairan kas →</a>
+    </div>
+    {{if .Tenants}}
+    <ul class="usage usage-ranked">
+      {{range .Tenants}}
+      <li>
+        <span class="tn"><strong>{{.Name}}</strong></span>
+        <progress max="{{$.MaxCount}}" value="{{.Count}}" aria-label="{{.Name}}">{{.Count}}</progress>
+        <span class="num"><strong>{{rupiah .Amount}}</strong><br><span class="muted small">{{.Count}} lbr</span></span>
+      </li>
+      {{end}}
+    </ul>
+    {{else}}<p class="muted">Belum ada tenant aktif.</p>{{end}}
+  </section>
+</div>
+
+<section class="panel">
+  <div class="head">
+    <div>
+      <h2>Transaksi Kas Terbaru</h2>
+      <p class="muted small">Aktivitas penukaran voucher secara langsung</p>
+    </div>
+    <a class="btn-o" href="{{.AllURL}}">Lihat semua transaksi →</a>
+  </div>
+  {{if .Recent}}
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Jam</th><th>Staf / Unit</th><th>Tenant</th><th class="r">Nilai</th><th>Status</th></tr></thead>
+    <tbody>
+      {{range .Recent}}
+      <tr>
+        <td class="nowrap">{{jam .At}}</td>
+        <td><strong>{{.Staff}}</strong><br><span class="muted small">{{.Unit}}</span></td>
+        <td>{{.Tenant}}</td>
+        <td class="r nowrap">{{rupiah .Amount}}</td>
+        <td>{{if .Voided}}<span class="tag tag-void">Dibatalkan</span>{{else}}<span class="tag tag-ok">Terpakai</span>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  </div>
+  <p class="foot muted small">Menampilkan {{len .Recent}} dari {{.RecentTotal}} transaksi · <a href="{{.AllURL}}">Buka transaksi lengkap</a></p>
+  {{else}}<p class="muted">Belum ada voucher yang dipakai pada tanggal ini.</p>{{end}}
+</section>
+{{end}}
+{{end}}

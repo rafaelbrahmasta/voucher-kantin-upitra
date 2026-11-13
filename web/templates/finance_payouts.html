@@ -1,0 +1,102 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>Pencairan Kas Tenant</h1>
+    <p class="muted">{{.DateLabel}}{{if .IsToday}} · diperbarui {{.Updated}}{{end}}</p>
+  </div>
+  <form method="get" class="inline">
+    <label for="tanggal" class="muted small">Tanggal</label>
+    <input id="tanggal" class="field" type="date" name="tanggal" value="{{.Date}}">
+    <button class="btn-s" type="submit">Tampilkan</button>
+  </form>
+</div>
+
+<dl class="stats">
+  <div>
+    <dt>Total Kas Penggantian</dt>
+    <dd class="money">{{rupiah .TotalAmount}}</dd>
+    <dd class="sub">Total uang kas yang disiapkan hari ini</dd>
+  </div>
+  <div>
+    <dt>Total Voucher Diklaim</dt>
+    <dd>{{.TotalCount}}</dd>
+    <dd class="sub">Lembar voucher terpakai</dd>
+  </div>
+  <div>
+    <dt>Jumlah Tenant Aktif</dt>
+    <dd>{{len .Items}}</dd>
+    <dd class="sub">Stan kantin terdaftar</dd>
+  </div>
+  <div>
+    <dt>Waktu Layanan Kas</dt>
+    <dd>16.00</dd>
+    <dd class="sub">Setelah tutup hari operasional</dd>
+  </div>
+</dl>
+
+{{if .Items}}
+<div class="panel">
+  <div class="head">
+    <div>
+      <h2>Daftar Penggantian per Stan Kantin</h2>
+      <p class="muted small">Rincian klaim kas yang berhak diterima masing-masing tenant pada tanggal ini</p>
+    </div>
+  </div>
+  <div class="data-table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Stan / Tenant</th>
+          <th>Nama Pemilik</th>
+          <th>Rekening Bank</th>
+          <th class="r">Jumlah Voucher</th>
+          <th class="r">Total Uang (Rp)</th>
+          <th>Status Kas</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{range .Items}}
+        <tr{{if not .Active}} class="void"{{end}}>
+          <td>
+            <strong>{{.Name}}</strong>
+            {{if .Stall}}<br><span class="muted small">{{.Stall}}</span>{{end}}
+          </td>
+          <td>{{.Owner}}</td>
+          <td>
+            {{if .BankName}}
+              <strong>{{.BankName}}</strong><br><span class="muted small">{{.BankAccount}}</span>
+            {{else}}
+              <span class="muted">Tunai (Kas Kecil)</span>
+            {{end}}
+          </td>
+          <td class="r nowrap"><strong>{{.Count}}</strong> lbr</td>
+          <td class="r nowrap money"><strong>{{rupiah .Amount}}</strong></td>
+          <td>
+            {{if not .Active}}
+              <span class="tag tag-void">Nonaktif</span>
+            {{else if gt .Count 0}}
+              <span class="tag tag-ok">Siap Dicairkan</span>
+            {{else}}
+              <span class="tag tag-void">Nihil Transaksi</span>
+            {{end}}
+          </td>
+        </tr>
+        {{end}}
+      </tbody>
+      <tfoot>
+        <tr>
+          <th colspan="3" class="r">Total Keseluruhan:</th>
+          <th class="r nowrap"><strong>{{.TotalCount}} lbr</strong></th>
+          <th class="r nowrap money"><strong>{{rupiah .TotalAmount}}</strong></th>
+          <th></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{{else}}
+<div class="emptybox">
+  <strong>Belum ada data tenant.</strong>
+</div>
+{{end}}
+{{end}}

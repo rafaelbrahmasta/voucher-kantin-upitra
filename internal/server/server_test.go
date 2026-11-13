@@ -106,6 +106,28 @@ func get(h http.Handler, path string) (int, string, http.Header) {
 	return rec.Code, rec.Body.String(), rec.Header()
 }
 
+// getWithAdminCookie melakukan GET dengan cookie sesi Admin IT yang valid (untuk test).
+func getWithAdminCookie(h http.Handler, s *Server, path string) (int, string, http.Header) {
+	ss := adminSession{UserID: 1, DisplayName: "Admin Test", Role: "admin"}
+	val := s.encodeAdminSession(ss, s.now().Add(adminSessTTL))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", path, nil)
+	req.AddCookie(&http.Cookie{Name: adminCookie, Value: val})
+	h.ServeHTTP(rec, req)
+	return rec.Code, rec.Body.String(), rec.Header()
+}
+
+// getWithFinanceCookie melakukan GET dengan cookie sesi Finance yang valid (untuk test).
+func getWithFinanceCookie(h http.Handler, s *Server, path string) (int, string, http.Header) {
+	ss := adminSession{UserID: 2, DisplayName: "Finance Test", Role: "finance"}
+	val := s.encodeAdminSession(ss, s.now().Add(adminSessTTL))
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", path, nil)
+	req.AddCookie(&http.Cookie{Name: financeCookie, Value: val})
+	h.ServeHTTP(rec, req)
+	return rec.Code, rec.Body.String(), rec.Header()
+}
+
 func post(h http.Handler, path, body string) (int, map[string]any) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", path, strings.NewReader(body))
@@ -125,11 +147,83 @@ func mustContain(t *testing.T, body string, parts ...string) {
 	}
 }
 
+// newTestServerRaw mengembalikan *Server sekaligus handler (untuk test yang butuh cookie).
+func newTestServerRaw(t *testing.T, env string) (*Server, http.Handler, *fakeScanner, *fakeReports) {
+	t.Helper()
+	sc := &fakeScanner{}
+	rp := &fakeReports{summary: report.Summary{Issued: 98, Used: 71, Void: 2, Amount: 355000, Inactive: 2}}
+	cfg := config.Config{Env: env, QRKey: qrKey, ShortKey: shKey, Location: wib, DevTenantID: 1, DevUserID: 1}
+	s, err := New(cfg, Deps{DB: okPinger{}, Scanner: sc, Reports: rp, Master: newFakeMaster()}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.now = func() time.Time { return nowFix }
+	return s, s.Handler(), sc, rp
+}
+
+// ─────────────────────── TEST HALAMAN PUBLIK (dev) ───────────────────────────
+
 func TestSemuaHalamanTampil(t *testing.T) {
-	h, _, _ := newTestServer(t, "dev")
-	for _, p := range []string{"/", "/scan", "/today", "/admin", "/admin/transaksi", "/healthz", "/static/app.css", "/static/scan.js", "/static/admin.css", "/static/masuk.js", "/masuk", "/admin/tenant", "/admin/tenant/baru", "/admin/tenant/1", "/api/menu"} {
+	sv, h, _, _ := newTestServerRaw(t, "dev")
+
+	// Halaman publik / tenant (tidak butuh auth)
+	for _, p := range []string{
+		"/", "/scan", "/today", "/healthz",
+		"/static/app.css", "/static/scan.js", "/static/admin.css", "/static/masuk.js",
+		"/masuk", "/api/menu",
+	} {
 		if code, _, _ := get(h, p); code != 200 {
 			t.Errorf("GET %s = %d", p, code)
+		}
+	}
+
+	// Halaman login admin & finance (tidak butuh auth)
+	for _, p := range []string{"/admin/masuk", "/finance/masuk"} {
+		if code, _, _ := get(h, p); code != 200 {
+			t.Errorf("GET %s = %d", p, code)
+		}
+	}
+
+	// Halaman yang butuh cookie Admin IT
+	for _, p := range []string{
+		"/admin", "/admin/transaksi", "/admin/pengguna",
+		"/admin/tenant", "/admin/tenant/baru", "/admin/tenant/1",
+	} {
+		if code, _, _ := getWithAdminCookie(h, sv, p); code != 200 {
+			t.Errorf("GET %s (dengan cookie admin) = %d", p, code)
+		}
+	}
+
+	// Halaman yang butuh cookie Finance
+	for _, p := range []string{"/finance", "/finance/pencairan", "/finance/transaksi"} {
+		if code, _, _ := getWithFinanceCookie(h, sv, p); code != 200 {
+			t.Errorf("GET %s (dengan cookie finance) = %d", p, code)
+		}
+	}
+}
+
+func TestAdminTanpaCookieRedirectKeLogin(t *testing.T) {
+	h, _, _ := newTestServer(t, "dev")
+	for _, p := range []string{"/admin", "/admin/transaksi", "/admin/pengguna", "/admin/tenant"} {
+		code, _, hd := get(h, p)
+		if code != 302 && code != 303 {
+			t.Errorf("GET %s tanpa cookie = %d (harus redirect)", p, code)
+		}
+		if loc := hd.Get("Location"); loc != "/admin/masuk" {
+			t.Errorf("GET %s redirect ke %q, harus /admin/masuk", p, loc)
+		}
+	}
+}
+
+func TestFinanceTanpaCookieRedirectKeLogin(t *testing.T) {
+	h, _, _ := newTestServer(t, "dev")
+	for _, p := range []string{"/finance", "/finance/transaksi", "/finance/pencairan"} {
+		code, _, hd := get(h, p)
+		if code != 302 && code != 303 {
+			t.Errorf("GET %s tanpa cookie = %d (harus redirect)", p, code)
+		}
+		if loc := hd.Get("Location"); loc != "/finance/masuk" {
+			t.Errorf("GET %s redirect ke %q, harus /finance/masuk", p, loc)
 		}
 	}
 }
@@ -219,26 +313,39 @@ func TestScanKodeCadangan(t *testing.T) {
 }
 
 func TestDashboardRingkasan(t *testing.T) {
-	h, _, _ := newTestServer(t, "dev")
-	_, body, _ := get(h, "/admin")
+	sv, h, _, _ := newTestServerRaw(t, "dev")
+	_, body, _ := getWithAdminCookie(h, sv, "/admin")
 	mustContain(t, body, "Rabu, 4 Nov 2026", "diperbarui 12.20", ">98<", ">71<", "72%", "Rp355.000", "25 belum dipakai", "2 staf nonaktif",
 		"Kantin Dev", "14 · Rp70.000", `<progress max="14" value="14"`, "Dr. Rina Kusuma", "Dibatalkan", "Lihat semua transaksi", "dari=2026-11-04")
 	mustContain(t, body, `href="/admin/transaksi?dari=2026-11-04&amp;sampai=2026-11-04"`)
 }
 
+func TestFinancePages(t *testing.T) {
+	sv, h, _, _ := newTestServerRaw(t, "dev")
+
+	_, body, _ := getWithFinanceCookie(h, sv, "/finance")
+	mustContain(t, body, "Ringkasan Kas Keuangan", "Anggaran Terbit", "Kewajiban Kas", "Efisiensi", "Realisasi Anggaran", "Kantin Dev")
+
+	_, pBody, _ := getWithFinanceCookie(h, sv, "/finance/pencairan")
+	mustContain(t, pBody, "Pencairan Kas Tenant", "Total Kas Penggantian", "Daftar Penggantian per Stan Kantin", "Kantin Dev")
+
+	_, txBody, _ := getWithFinanceCookie(h, sv, "/finance/transaksi")
+	mustContain(t, txBody, "Detail Transaksi Keuangan", "Dari tanggal", "Sampai tanggal")
+}
+
 func TestDashboardTanggalKosongdanPilihan(t *testing.T) {
-	h, _, rp := newTestServer(t, "dev")
+	sv, h, _, rp := newTestServerRaw(t, "dev")
 	rp.summary = report.Summary{}
-	_, body, _ := get(h, "/admin?tanggal=2026-12-25")
+	_, body, _ := getWithAdminCookie(h, sv, "/admin?tanggal=2026-12-25")
 	mustContain(t, body, "Belum ada voucher untuk tanggal ini", "issue-vouchers", "Jumat, 25 Des 2026")
-	if _, body, _ := get(h, "/admin?tanggal=ngawur"); !strings.Contains(body, "Rabu, 4 Nov 2026") {
+	if _, body, _ := getWithAdminCookie(h, sv, "/admin?tanggal=ngawur"); !strings.Contains(body, "Rabu, 4 Nov 2026") {
 		t.Error("tanggal salah harus kembali ke hari ini")
 	}
 }
 
 func TestTransaksiFilterDanPagination(t *testing.T) {
-	h, _, rp := newTestServer(t, "dev")
-	_, body, _ := get(h, "/admin/transaksi?dari=2026-11-01&sampai=2026-11-04&tenant=2&unit=Fakultas+Teknik&q=rina&page=2")
+	sv, h, _, rp := newTestServerRaw(t, "dev")
+	_, body, _ := getWithAdminCookie(h, sv, "/admin/transaksi?dari=2026-11-01&sampai=2026-11-04&tenant=2&unit=Fakultas+Teknik&q=rina&page=2")
 	f := rp.txFilter
 	if f.From.Format("2006-01-02") != "2026-11-01" || f.To.Format("2006-01-02") != "2026-11-04" ||
 		f.TenantID != 2 || f.Unit != "Fakultas Teknik" || f.Q != "rina" || f.Page != 2 || f.PerPage != 50 {
@@ -250,8 +357,8 @@ func TestTransaksiFilterDanPagination(t *testing.T) {
 }
 
 func TestTransaksiTanpaParameterMemakaiHariIni(t *testing.T) {
-	h, _, rp := newTestServer(t, "dev")
-	get(h, "/admin/transaksi")
+	sv, h, _, rp := newTestServerRaw(t, "dev")
+	getWithAdminCookie(h, sv, "/admin/transaksi")
 	if rp.txFilter.From.Format("2006-01-02") != "2026-11-04" || rp.txFilter.To.Format("2006-01-02") != "2026-11-04" || rp.txFilter.TenantID != 0 {
 		t.Errorf("default = %+v", rp.txFilter)
 	}
@@ -259,7 +366,11 @@ func TestTransaksiTanpaParameterMemakaiHariIni(t *testing.T) {
 
 func TestSelainDevHalamanTertutup(t *testing.T) {
 	h, _, _ := newTestServer(t, "prod")
-	for _, p := range []string{"/", "/scan", "/today", "/admin", "/admin/transaksi", "/api/today"} {
+	for _, p := range []string{
+		"/", "/scan", "/today", "/admin", "/admin/transaksi", "/admin/pengguna",
+		"/api/today", "/finance", "/finance/pencairan", "/finance/transaksi",
+		"/admin/masuk", "/finance/masuk",
+	} {
 		if code, _, _ := get(h, p); code != 404 {
 			t.Errorf("GET %s di prod = %d, harus 404", p, code)
 		}
@@ -271,3 +382,44 @@ func TestSelainDevHalamanTertutup(t *testing.T) {
 		t.Errorf("/healthz = %d", code)
 	}
 }
+
+func TestAdminAndFinanceLogout(t *testing.T) {
+	sv, h, _, _ := newTestServerRaw(t, "dev")
+
+	// Admin logout via GET
+	code, _, hd := getWithAdminCookie(h, sv, "/admin/keluar")
+	if code != http.StatusSeeOther {
+		t.Errorf("GET /admin/keluar status = %d, expected 303", code)
+	}
+	if loc := hd.Get("Location"); loc != "/admin/masuk" {
+		t.Errorf("GET /admin/keluar redirect ke %s, expected /admin/masuk", loc)
+	}
+	if setCookie := hd.Get("Set-Cookie"); !strings.Contains(setCookie, "admin_sess=") || !strings.Contains(setCookie, "Max-Age=0") {
+		t.Errorf("Set-Cookie logout admin salah: %s", setCookie)
+	}
+
+	// Finance logout via GET
+	code, _, hd = getWithFinanceCookie(h, sv, "/finance/keluar")
+	if code != http.StatusSeeOther {
+		t.Errorf("GET /finance/keluar status = %d, expected 303", code)
+	}
+	if loc := hd.Get("Location"); loc != "/finance/masuk" {
+		t.Errorf("GET /finance/keluar redirect ke %s, expected /finance/masuk", loc)
+	}
+	if setCookie := hd.Get("Set-Cookie"); !strings.Contains(setCookie, "finance_sess=") || !strings.Contains(setCookie, "Max-Age=0") {
+		t.Errorf("Set-Cookie logout finance salah: %s", setCookie)
+	}
+}
+
+func TestDynamicUserNameRendering(t *testing.T) {
+	sv, h, _, _ := newTestServerRaw(t, "dev")
+
+	// Pastikan nama sesi "Admin Test" tampil di halaman admin
+	_, bodyAdmin, _ := getWithAdminCookie(h, sv, "/admin")
+	mustContain(t, bodyAdmin, "Admin Test", "Admin Super IT", "/admin/keluar")
+
+	// Pastikan nama sesi "Finance Test" tampil di halaman finance
+	_, bodyFinance, _ := getWithFinanceCookie(h, sv, "/finance")
+	mustContain(t, bodyFinance, "Finance Test", "Biro Keuangan", "/finance/keluar")
+}
+

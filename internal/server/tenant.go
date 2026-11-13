@@ -181,13 +181,10 @@ func (s *Server) finish(r *http.Request, tenantID int64, res voucher.ScanResult,
 	if len(lines) == 0 {
 		return out
 	}
-	if res.At != nil {
-		saved, err := s.deps.Master.RecordOrder(r.Context(), tenantID, *res.At, lines)
-		if err != nil || !saved {
-			s.log.Error("catat menu gagal; scan tetap sah", "err", err, "saved", saved, "tenant", tenantID)
-		}
-	} else {
-		s.log.Warn("catat menu dilewati: hasil scan tanpa waktu", "tenant", tenantID)
+	if res.VoucherID == 0 {
+		s.log.Warn("catat menu dilewati: voucher ID nol", "tenant", tenantID)
+	} else if err := s.deps.Master.RecordOrder(r.Context(), res.VoucherID, lines); err != nil {
+		s.log.Error("catat menu gagal; scan tetap sah", "err", err, "voucher", res.VoucherID, "tenant", tenantID)
 	}
 	total := master.OrderTotal(lines)
 	o := &orderOut{Total: total, Pay: total - res.Amount}

@@ -10,17 +10,35 @@
 <body class="tenant">
 <div class="shell">
 <main class="login">
-  <h1>Hubungkan HP</h1>
-  <p class="muted">Masukkan kode dari admin supaya HP ini tersambung ke tenant Anda. Cukup sekali; HP akan diingat.</p>
+  <div class="login-head">
+    <h1>Pilih Stan Kantin</h1>
+    <p class="muted small">Pilih stan tempat Anda berjualan untuk langsung membuka kasir pemindai voucher makanan UPITRA.</p>
+  </div>
+
   {{if .Error}}<p class="flash flash-err" role="alert">{{.Error}}</p>{{end}}
-  <form method="post" action="/masuk" class="manual">
-    <label for="kode" class="small muted">Kode koneksi, contoh 7M4QX-P8RTK</label>
-    <input id="kode" name="kode" class="field" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="14" required>
-    <button class="btn primary" type="submit">Hubungkan</button>
-  </form>
-  <p class="muted small center">Belum punya kode? Minta admin membuatnya di Dashboard, menu Tenant &amp; menu.</p>
+
+  {{if .Tenants}}
+  <div class="tenant-list">
+    {{range .Tenants}}
+    <form method="post" action="/masuk/pilih" class="m-0">
+      <input type="hidden" name="tenant_id" value="{{.ID}}">
+      <button type="submit" class="tenant-btn">
+        <div>
+          <strong>{{.Name}}</strong>
+          <span class="muted small">{{if .Stall}}<span class="badge-stall">{{.Stall}}</span> · {{end}}Pemilik: {{.Owner}}</span>
+        </div>
+        <span class="tc-arrow">Buka Kasir →</span>
+      </button>
+    </form>
+    {{end}}
+  </div>
+  {{else}}
+  <div class="emptybox">
+    <strong>Belum ada stan kantin aktif</strong>
+    <p class="small muted">Hubungi Admin Super IT untuk mendaftarkan dan mengaktifkan stan kantin di kampus.</p>
+  </div>
+  {{end}}
 </main>
 </div>
-<script src="/static/masuk.js" defer></script>
 </body>
 </html>{{end}}

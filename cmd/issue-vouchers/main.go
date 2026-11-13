@@ -63,7 +63,7 @@ func run(log *slog.Logger) int {
 	}
 	defer pool.Close()
 
-	mailer, err := mail.New(cfg.Mail, log)
+	mailer, err := mail.New(cfg.Mail, cfg.Microsoft, log)
 	if err != nil {
 		log.Error("email", "err", err)
 		return 1

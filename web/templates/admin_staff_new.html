@@ -1,0 +1,51 @@
+{{define "content"}}
+<div class="head">
+  <div>
+    <h1>{{if .StaffID}}Ubah Data Dosen / Staf{{else}}Tambah Dosen &amp; Staf Baru{{end}}</h1>
+    <p class="muted"><a href="/admin/staf">← Kembali ke Daftar Dosen &amp; Staf</a></p>
+  </div>
+</div>
+
+{{if .Error}}<p class="flash flash-err" role="alert">{{.Error}}</p>{{end}}
+
+<section class="panel narrow">
+  <form method="post" action="{{if .StaffID}}/admin/staf/{{.StaffID}}{{else}}/admin/staf{{end}}" class="stack">
+    <div>
+      <label for="name" class="small muted">Nama Lengkap &amp; Gelar</label>
+      <input id="name" class="field" name="name" value="{{.In.Name}}" placeholder="Contoh: Dr. Ir. Budi Santoso, M.Kom." maxlength="150" required autofocus>
+    </div>
+
+    <div>
+      <label for="email" class="small muted">Email Kampus (Akun Microsoft 365 / Outlook)</label>
+      <input id="email" class="field" type="email" name="email" value="{{.In.Email}}" placeholder="nama@upitra.ac.id" required>
+      <p class="small muted field-hint">Email ini yang akan menerima voucher harian berupa QR code setiap pukul 09.55 WIB.</p>
+    </div>
+
+    <div class="pair">
+      <div>
+        <label for="nip" class="small muted">NIP / Nomor Pegawai (Opsional)</label>
+        <input id="nip" class="field" name="nip" value="{{.In.NIP}}" placeholder="Contoh: 19850101..." maxlength="30">
+      </div>
+      <div>
+        <label for="unit" class="small muted">Unit / Fakultas / Biro</label>
+        <input id="unit" class="field" name="unit" value="{{.In.Unit}}" placeholder="Contoh: Fakultas Teknik" maxlength="100" required>
+      </div>
+    </div>
+
+    <div class="check-box">
+      <label class="check-label">
+        <input type="checkbox" name="is_active" {{if .In.IsActive}}checked{{end}}>
+        <span>
+          <strong>Aktif Menerima Voucher</strong><br>
+          <span class="small muted">Jika dicentang, dosen/staf ini otomatis dibuatkan dan dikirimi voucher Rp5.000 setiap hari kerja.</span>
+        </span>
+      </label>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn-s" type="submit">{{if .StaffID}}Simpan Perubahan{{else}}Daftarkan Dosen / Staf{{end}}</button>
+      <a href="/admin/staf" class="btn-o">Batal</a>
+    </div>
+  </form>
+</section>
+{{end}}

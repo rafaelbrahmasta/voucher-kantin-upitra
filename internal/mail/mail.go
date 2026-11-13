@@ -44,7 +44,7 @@ type Mailer interface {
 }
 
 // New memilih implementasi berdasarkan konfigurasi.
-func New(cfg config.MailConfig, log *slog.Logger) (Mailer, error) {
+func New(cfg config.MailConfig, msCfg config.MSConfig, log *slog.Logger) (Mailer, error) {
 	switch cfg.Driver {
 	case "log":
 		return &LogMailer{Log: log}, nil
@@ -53,8 +53,22 @@ func New(cfg config.MailConfig, log *slog.Logger) (Mailer, error) {
 			return nil, fmt.Errorf("MAIL_FROM tidak valid: %w", err)
 		}
 		return &SMTPMailer{Host: cfg.Host, Port: cfg.Port, User: cfg.User, Pass: cfg.Pass, From: cfg.From}, nil
+	case "graph":
+		if msCfg.TenantID == "" || msCfg.ClientID == "" || msCfg.ClientSecret == "" {
+			return nil, fmt.Errorf("MAIL_DRIVER=graph membutuhkan MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET")
+		}
+		if msCfg.MailFrom == "" {
+			return nil, fmt.Errorf("MAIL_DRIVER=graph membutuhkan MS_MAIL_FROM (mis. voucher@upitra.ac.id)")
+		}
+		return &GraphMailer{
+			TenantID:     msCfg.TenantID,
+			ClientID:     msCfg.ClientID,
+			ClientSecret: msCfg.ClientSecret,
+			MailFrom:     msCfg.MailFrom,
+			Log:          log,
+		}, nil
 	default:
-		return nil, fmt.Errorf("MAIL_DRIVER tidak dikenal: %q (pakai log atau smtp)", cfg.Driver)
+		return nil, fmt.Errorf("MAIL_DRIVER tidak dikenal: %q (pakai log, smtp, atau graph)", cfg.Driver)
 	}
 }
 

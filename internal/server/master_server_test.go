@@ -35,12 +35,14 @@ type fakeMaster struct {
 	deleteErr error
 	issued    int64
 	revoked   int64
-	menuCalls []string
-	recorded  []master.PricedLine
-	recAt     time.Time
-	recTenant int64
-	recCalls  int
-	recErr    error
+	menuCalls  []string
+	recorded   []master.PricedLine
+	recVoucher int64
+	recCalls   int
+	recErr     error
+
+	staff     []master.StaffRow
+	staffNext int64
 }
 
 func newFakeMaster() *fakeMaster {
@@ -54,6 +56,11 @@ func newFakeMaster() *fakeMaster {
 			2: {{ID: 20, TenantID: 2, Name: "Soto", Price: 12000, Available: true}},
 		},
 		versions: map[int64]int{1: 1, 2: 3},
+		staff: []master.StaffRow{
+			{ID: 1, NIP: "1001", Name: "Dr. Rina Kusuma", Email: "rina@example.com", Unit: "Fakultas Teknik", IsActive: true},
+			{ID: 2, NIP: "1002", Name: "Agus Santoso", Email: "agus@example.com", Unit: "Fakultas Teknik", IsActive: true},
+		},
+		staffNext: 3,
 	}
 }
 
@@ -108,6 +115,13 @@ func (f *fakeMaster) SessionValid(_ context.Context, ss master.Session) (bool, e
 	v, ok := f.versions[ss.TenantID]
 	return ok && v == ss.Version, nil
 }
+func (f *fakeMaster) TenantVersion(_ context.Context, id int64) (int, error) {
+	v, ok := f.versions[id]
+	if !ok {
+		return 0, master.ErrNotFound
+	}
+	return v, nil
+}
 func (f *fakeMaster) ListMenu(_ context.Context, id int64, only bool) ([]master.MenuItem, error) {
 	return f.menu[id], nil
 }
@@ -126,10 +140,78 @@ func (f *fakeMaster) DeleteMenu(_ context.Context, id, mid int64) error {
 func (f *fakeMaster) PriceOrder(_ context.Context, id int64, lines []master.OrderLine) ([]master.PricedLine, error) {
 	return master.PriceLines(f.menu[id], lines), nil
 }
-func (f *fakeMaster) RecordOrder(_ context.Context, id int64, at time.Time, lines []master.PricedLine) (bool, error) {
+func (f *fakeMaster) RecordOrder(_ context.Context, voucherID int64, lines []master.PricedLine) error {
 	f.recCalls++
-	f.recTenant, f.recAt, f.recorded = id, at, lines
-	return f.recErr == nil, f.recErr
+	f.recVoucher, f.recorded = voucherID, lines
+	return f.recErr
+}
+
+func (f *fakeMaster) ListStaff(_ context.Context, q string) ([]master.StaffRow, error) {
+	if q == "" {
+		return f.staff, nil
+	}
+	var res []master.StaffRow
+	for _, s := range f.staff {
+		if strings.Contains(strings.ToLower(s.Name), strings.ToLower(q)) || strings.Contains(strings.ToLower(s.Unit), strings.ToLower(q)) {
+			res = append(res, s)
+		}
+	}
+	return res, nil
+}
+
+func (f *fakeMaster) GetStaff(_ context.Context, id int64) (master.StaffRow, error) {
+	for _, s := range f.staff {
+		if s.ID == id {
+			return s, nil
+		}
+	}
+	return master.StaffRow{}, master.ErrNotFound
+}
+
+func (f *fakeMaster) CreateStaff(_ context.Context, in master.StaffInput) (int64, error) {
+	if strings.TrimSpace(in.Name) == "" {
+		return 0, master.ValidationError("Nama lengkap wajib diisi")
+	}
+	id := f.staffNext
+	f.staffNext++
+	f.staff = append(f.staff, master.StaffRow{
+		ID: id, NIP: in.NIP, Name: in.Name, Email: in.Email, Unit: in.Unit, IsActive: in.IsActive,
+	})
+	return id, nil
+}
+
+func (f *fakeMaster) UpdateStaff(_ context.Context, id int64, in master.StaffInput) error {
+	for i, s := range f.staff {
+		if s.ID == id {
+			f.staff[i].Name = in.Name
+			f.staff[i].Email = in.Email
+			f.staff[i].NIP = in.NIP
+			f.staff[i].Unit = in.Unit
+			f.staff[i].IsActive = in.IsActive
+			return nil
+		}
+	}
+	return master.ErrNotFound
+}
+
+func (f *fakeMaster) ToggleStaff(_ context.Context, id int64) error {
+	for i, s := range f.staff {
+		if s.ID == id {
+			f.staff[i].IsActive = !f.staff[i].IsActive
+			return nil
+		}
+	}
+	return master.ErrNotFound
+}
+
+func (f *fakeMaster) DeleteStaff(_ context.Context, id int64) error {
+	for i, s := range f.staff {
+		if s.ID == id {
+			f.staff = append(f.staff[:i], f.staff[i+1:]...)
+			return nil
+		}
+	}
+	return master.ErrNotFound
 }
 
 func newMasterServer(t *testing.T, env string) (*Server, *fakeMaster, *fakeScanner) {
@@ -145,6 +227,15 @@ func newMasterServer(t *testing.T, env string) (*Server, *fakeMaster, *fakeScann
 	return s, fm, sc
 }
 
+var testAdminCookieVal string
+
+func init() {
+	cfg := config.Config{QRKey: qrKey, ShortKey: shKey, Location: wib}
+	s, _ := New(cfg, Deps{DB: okPinger{}}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	s.now = func() time.Time { return nowFix }
+	testAdminCookieVal = s.encodeAdminSession(adminSession{UserID: 1, DisplayName: "Admin Test", Role: "admin"}, nowFix.Add(adminSessTTL))
+}
+
 func do(h http.Handler, method, path string, form url.Values, hdr map[string]string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	var body io.Reader
 	if form != nil {
@@ -157,8 +248,15 @@ func do(h http.Handler, method, path string, form url.Values, hdr map[string]str
 	for k, v := range hdr {
 		req.Header.Set(k, v)
 	}
+	hasAdmin := false
 	for _, c := range cookies {
+		if c.Name == adminCookie {
+			hasAdmin = true
+		}
 		req.AddCookie(c)
+	}
+	if !hasAdmin && strings.HasPrefix(path, "/admin") && path != "/admin/masuk" && path != "/admin/keluar" {
+		req.AddCookie(&http.Cookie{Name: adminCookie, Value: testAdminCookieVal})
 	}
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -169,17 +267,24 @@ func sessCookie(s *Server, id int64, ver int) *http.Cookie {
 	return &http.Cookie{Name: sessionCookie, Value: s.encodeSession(master.Session{TenantID: id, Version: ver}, nowFix.Add(time.Hour))}
 }
 
+// adminCookie membuat cookie sesi Admin IT yang valid untuk dipakai di test.
+func adminCookieFor(s *Server) *http.Cookie {
+	ss := adminSession{UserID: 1, DisplayName: "Admin Test", Role: "admin"}
+	val := s.encodeAdminSession(ss, nowFix.Add(adminSessTTL))
+	return &http.Cookie{Name: adminCookie, Value: val}
+}
+
 func TestAdminTenantHalaman(t *testing.T) {
 	s, _, _ := newMasterServer(t, "dev")
 	h := s.Handler()
 	rec := do(h, "GET", "/admin/tenant", nil, nil)
-	mustContain(t, rec.Body.String(), "Tenant &amp; menu", "Kantin Dev", "Bu Sri", "Stan 1", "Kode aktif", "Belum ada kode", "/admin/tenant/baru", `href="/admin/tenant/1"`)
+	mustContain(t, rec.Body.String(), "Tenant &amp; menu", "Kantin Dev", "Bu Sri", "Stan 1", "/admin/tenant/baru", `href="/admin/tenant/1"`)
 	if strings.Contains(rec.Body.String(), "<b>Dev</b>") {
 		t.Error("nama tenant harus di-escape (XSS)")
 	}
 	rec = do(h, "GET", "/admin/tenant/1", nil, nil)
 	mustContain(t, rec.Body.String(), `name="owner" value="Bu Sri"`, `value="BCA"`, `value="1234567890"`, "Nasi goreng", "15000", "Es teh", `action="/admin/tenant/1/menu/10"`, `formaction="/admin/tenant/1/menu/10/hapus"`,
-		`action="/admin/tenant/1/kode"`, `action="/admin/tenant/1/putus"`, `name="yakin"`)
+		`action="/masuk/pilih"`, `name="yakin"`)
 	if code := do(h, "GET", "/admin/tenant/999", nil, nil).Code; code != 404 {
 		t.Errorf("tenant tidak ada = %d", code)
 	}
@@ -288,13 +393,13 @@ func TestMasukDanSesi(t *testing.T) {
 	h := s.Handler()
 
 	rec := do(h, "GET", "/masuk", nil, nil)
-	mustContain(t, rec.Body.String(), "Hubungkan HP", `name="kode"`, "/static/masuk.js")
+	mustContain(t, rec.Body.String(), "Pilih Stan Kantin", "Kantin Dev")
 	if strings.Contains(rec.Body.String(), "<script>") || strings.Contains(rec.Body.String(), " style=") {
 		t.Error("tidak boleh ada skrip/style inline (CSP)")
 	}
 
-	// kode benar -> cookie sesi HttpOnly -> /scan
-	rec = do(h, "POST", "/masuk", url.Values{"kode": {"7m4qx-p8rtk"}}, nil)
+	// pilih stan 2 langsung -> cookie sesi HttpOnly -> /scan
+	rec = do(h, "POST", "/masuk/pilih", url.Values{"tenant_id": {"2"}}, nil)
 	if rec.Code != 303 || rec.Header().Get("Location") != "/scan" {
 		t.Fatalf("masuk = %d %q", rec.Code, rec.Header().Get("Location"))
 	}
@@ -453,7 +558,7 @@ func TestAPIMenu(t *testing.T) {
 
 func scanOK(sc *fakeScanner) {
 	at := time.Date(2026, 11, 4, 5, 14, 3, 0, time.UTC)
-	sc.reply = voucher.ScanResult{Result: "ok", Staff: "Dr. Rina Kusuma", Unit: "Fakultas Teknik", Amount: 5000, At: &at}
+	sc.reply = voucher.ScanResult{VoucherID: 42, Result: "ok", Staff: "Dr. Rina Kusuma", Unit: "Fakultas Teknik", Amount: 5000, At: &at}
 }
 
 func postScan(h http.Handler, body string, c ...*http.Cookie) (int, string) {
@@ -479,11 +584,8 @@ func TestScanDenganMenu(t *testing.T) {
 		t.Fatalf("scan = %d %s", code, body)
 	}
 	mustContain(t, body, `"result":"ok"`, `"total":34000`, `"pay":29000`, `"name":"Nasi goreng"`, `"subtotal":30000`, `"qty":2`)
-	if fm.recCalls != 1 || fm.recTenant != 1 || len(fm.recorded) != 2 || fm.recorded[0].Price != 15000 {
-		t.Fatalf("pesanan tercatat = tenant %d, %+v", fm.recTenant, fm.recorded)
-	}
-	if !fm.recAt.Equal(time.Date(2026, 11, 4, 5, 14, 3, 0, time.UTC)) {
-		t.Errorf("waktu pakai voucher salah: %v", fm.recAt)
+	if fm.recCalls != 1 || fm.recVoucher != 42 || len(fm.recorded) != 2 || fm.recorded[0].Price != 15000 {
+		t.Fatalf("pesanan tercatat = voucher %d, %+v", fm.recVoucher, fm.recorded)
 	}
 	if !strings.Contains(body, `"at":"2026-11-04T12:14:03+07:00"`) {
 		t.Errorf("waktu harus WIB: %s", body)
@@ -542,6 +644,21 @@ func TestScanDitolakTidakMencatatMenu(t *testing.T) {
 		if strings.Contains(body, `"order"`) || fm.recCalls != 0 {
 			t.Errorf("%s: menu tidak boleh dicatat (%s)", res, body)
 		}
+	}
+}
+
+func TestScanVoucherIDNolTidakMencatatMenu(t *testing.T) {
+	s, fm, sc := newMasterServer(t, "dev")
+	h := s.Handler()
+	at := time.Date(2026, 11, 4, 5, 14, 3, 0, time.UTC)
+	sc.reply = voucher.ScanResult{VoucherID: 0, Result: "ok", Staff: "Dr. Rina Kusuma", Unit: "Fakultas Teknik", Amount: 5000, At: &at}
+	tok, _ := token.New()
+	code, body := postScan(h, `{"qr":"`+token.Payload(qrKey, tok)+`","items":[{"id":10,"qty":1}]}`)
+	if code != 200 || !strings.Contains(body, `"result":"ok"`) {
+		t.Fatalf("scan = %d %s", code, body)
+	}
+	if fm.recCalls != 0 {
+		t.Errorf("voucher ID 0 tidak boleh memanggil RecordOrder, recCalls=%d", fm.recCalls)
 	}
 }
 
@@ -611,5 +728,65 @@ func TestLimiter(t *testing.T) {
 	}
 	if l.blocked("a", t0.Add(2*time.Minute)) || len(l.hits) != 0 {
 		t.Error("setelah jendela lewat harus bebas dan bersih")
+	}
+}
+
+func TestAdminStaffWorkflow(t *testing.T) {
+	s, _, _ := newMasterServer(t, "dev")
+	h := s.Handler()
+
+	// 1. Tampilkan daftar staf
+	rec := do(h, "GET", "/admin/staf", nil, nil)
+	if rec.Code != 200 {
+		t.Fatalf("GET /admin/staf = %d", rec.Code)
+	}
+	mustContain(t, rec.Body.String(), "Dosen &amp; Staf", "Dr. Rina Kusuma", "Agus Santoso", "+ Tambah Dosen / Staf")
+
+	// 2. Form staf baru
+	recNew := do(h, "GET", "/admin/staf/baru", nil, nil)
+	if recNew.Code != 200 {
+		t.Fatalf("GET /admin/staf/baru = %d", recNew.Code)
+	}
+	mustContain(t, recNew.Body.String(), "Tambah Dosen &amp; Staf Baru", "Nama Lengkap &amp; Gelar")
+
+	// 3. Tambah staf baru via POST
+	form := url.Values{
+		"name":      {"Budi Hartono, M.T."},
+		"email":     {"budi@upitra.ac.id"},
+		"nip":       {"1003"},
+		"unit":      {"Fakultas Teknik"},
+		"is_active": {"on"},
+	}
+	recCreate := do(h, "POST", "/admin/staf", form, nil)
+	if recCreate.Code != http.StatusSeeOther {
+		t.Fatalf("POST /admin/staf = %d", recCreate.Code)
+	}
+	if loc := recCreate.Header().Get("Location"); !strings.Contains(loc, "/admin/staf?pesan=staf-dibuat") {
+		t.Errorf("redirect = %q, expected staf-dibuat", loc)
+	}
+
+	// 4. Ubah staf via POST
+	formUpdate := url.Values{
+		"name":      {"Dr. Rina Kusuma, S.T., M.Kom."},
+		"email":     {"rina@example.com"},
+		"nip":       {"1001"},
+		"unit":      {"Fakultas Teknologi"},
+		"is_active": {"on"},
+	}
+	recUpdate := do(h, "POST", "/admin/staf/1", formUpdate, nil)
+	if recUpdate.Code != http.StatusSeeOther {
+		t.Fatalf("POST /admin/staf/1 = %d", recUpdate.Code)
+	}
+
+	// 5. Toggle aktif/nonaktif
+	recToggle := do(h, "POST", "/admin/staf/1/toggle", url.Values{}, nil)
+	if recToggle.Code != http.StatusSeeOther {
+		t.Fatalf("POST /admin/staf/1/toggle = %d", recToggle.Code)
+	}
+
+	// 6. Hapus staf
+	recDel := do(h, "POST", "/admin/staf/2/hapus", url.Values{}, nil)
+	if recDel.Code != http.StatusSeeOther {
+		t.Fatalf("POST /admin/staf/2/hapus = %d", recDel.Code)
 	}
 }

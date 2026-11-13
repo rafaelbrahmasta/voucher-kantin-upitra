@@ -55,12 +55,21 @@ type Master interface {
 	RevokeDevices(ctx context.Context, tenantID int64) error
 	Redeem(ctx context.Context, rawCode string) (master.Session, error)
 	SessionValid(ctx context.Context, ss master.Session) (bool, error)
+	TenantVersion(ctx context.Context, id int64) (int, error)
 	ListMenu(ctx context.Context, tenantID int64, onlyAvailable bool) ([]master.MenuItem, error)
 	CreateMenu(ctx context.Context, tenantID int64, in master.MenuInput) error
 	UpdateMenu(ctx context.Context, tenantID, menuID int64, in master.MenuInput) error
 	DeleteMenu(ctx context.Context, tenantID, menuID int64) error
 	PriceOrder(ctx context.Context, tenantID int64, lines []master.OrderLine) ([]master.PricedLine, error)
-	RecordOrder(ctx context.Context, tenantID int64, usedAt time.Time, lines []master.PricedLine) (bool, error)
+	RecordOrder(ctx context.Context, voucherID int64, lines []master.PricedLine) error
+
+	// Manajemen Dosen & Staf penerima voucher
+	ListStaff(ctx context.Context, q string) ([]master.StaffRow, error)
+	GetStaff(ctx context.Context, id int64) (master.StaffRow, error)
+	CreateStaff(ctx context.Context, in master.StaffInput) (int64, error)
+	UpdateStaff(ctx context.Context, id int64, in master.StaffInput) error
+	DeleteStaff(ctx context.Context, id int64) error
+	ToggleStaff(ctx context.Context, id int64) error
 }
 
 type Deps struct {
@@ -92,6 +101,16 @@ var pageFiles = map[string][]string{
 	"admin_tenants":    {"templates/admin.html", "templates/admin_tenants.html"},
 	"admin_tenant_new": {"templates/admin.html", "templates/admin_tenant_new.html"},
 	"admin_tenant":     {"templates/admin.html", "templates/admin_tenant.html"},
+	"admin_users":      {"templates/admin.html", "templates/admin_users.html"},
+	"admin_staff":      {"templates/admin.html", "templates/admin_staff.html"},
+	"admin_staff_new":  {"templates/admin.html", "templates/admin_staff_new.html"},
+
+	"finance_home":    {"templates/finance.html", "templates/finance_home.html"},
+	"finance_tx":      {"templates/finance.html", "templates/finance_tx.html"},
+	"finance_payouts": {"templates/finance.html", "templates/finance_payouts.html"},
+
+	"admin_login":   {"templates/admin_login.html"},
+	"finance_login": {"templates/finance_login.html"},
 }
 
 func New(cfg config.Config, deps Deps, log *slog.Logger) (*Server, error) {
@@ -101,6 +120,7 @@ func New(cfg config.Config, deps Deps, log *slog.Logger) (*Server, error) {
 		"jam":    func(t time.Time) string { return idfmt.Clock(t.In(loc)) },
 		"tgl":    func(t time.Time) string { return idfmt.Date(t.In(loc)) },
 		"kode":   master.FormatCode,
+		"sub":    func(a, b int) int { return a - b },
 	}
 	pages := make(map[string]*template.Template, len(pageFiles))
 	for name, files := range pageFiles {
@@ -122,14 +142,14 @@ func (s *Server) Handler() http.Handler {
 	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.FS(static))))
 	r.Get("/healthz", s.handleHealth)
 
-	// Sementara semua halaman hanya aktif di mode dev, karena belum ada login:
-	// tenant memakai DEV_TENANT_ID, dan dashboard terbuka untuk siapa saja.
-	// Login tenant (M6-M7) dan login Microsoft untuk keuangan/admin (M7) menggantikannya.
+	// Sementara semua halaman hanya aktif di mode dev, karena belum ada login tenant:
+	// tenant memakai DEV_TENANT_ID. Portal Admin IT dan Finance dilindungi login masing-masing.
 	if s.cfg.Env == "dev" {
-		s.log.Warn("mode dev: halaman tenant dan admin terbuka tanpa login")
+		s.log.Warn("mode dev: halaman tenant aktif; admin dan finance dilindungi login")
 		r.Get("/", s.handleHome)
 		r.Get("/masuk", s.handleLoginPage)
 		r.Post("/masuk", s.handleLogin)
+		r.Post("/masuk/pilih", s.handleLoginSelect)
 		r.Post("/keluar", s.handleLogout)
 		r.Get("/scan", s.handleScanPage)
 		r.Get("/today", s.handleToday)
@@ -137,22 +157,61 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/api/menu", s.handleAPIMenu)
 		r.Post("/api/scan", s.handleScan)
 		r.Post("/api/scan/code", s.handleScanCode)
-		r.Get("/admin", s.handleAdminHome)
-		r.Get("/admin/transaksi", s.handleAdminTx)
+		r.Get("/preview-voucher", func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, "preview_email_voucher.html")
+		})
 
-		// Admin master: tenant, koneksi HP, menu kantin.
-		r.Get("/admin/tenant", s.handleAdminTenants)
-		r.Get("/admin/tenant/baru", s.handleAdminTenantNew)
-		r.Post("/admin/tenant", s.handleAdminTenantCreate)
-		r.Get("/admin/tenant/{id}", s.handleAdminTenantShow)
-		r.Post("/admin/tenant/{id}", s.handleAdminTenantUpdate)
-		r.Post("/admin/tenant/{id}/hapus", s.handleAdminTenantDelete)
-		r.Post("/admin/tenant/{id}/kode", s.handleAdminCode)
-		r.Post("/admin/tenant/{id}/putus", s.handleAdminRevoke)
-		r.Post("/admin/tenant/{id}/menu", s.handleAdminMenuCreate)
-		r.Post("/admin/tenant/{id}/menu/{mid}", s.handleAdminMenuUpdate)
-		r.Post("/admin/tenant/{id}/menu/{mid}/hapus", s.handleAdminMenuDelete)
+		// Autentikasi Single Sign-On (SSO) Microsoft Entra ID UPITRA
+		r.Get("/auth/microsoft", s.handleMicrosoftLogin)
+		r.Get("/auth/microsoft/callback", s.handleMicrosoftCallback)
+
+		// Portal Admin IT — halaman login terbuka, dashboard dilindungi middleware.
+		r.Get("/admin/masuk", s.handleAdminLoginPage)
+		r.Post("/admin/masuk", s.handleAdminLogin)
+		r.Get("/admin/keluar", s.handleAdminLogout)
+		r.Post("/admin/keluar", s.handleAdminLogout)
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireAdmin)
+			r.Get("/admin", s.handleAdminHome)
+			r.Get("/admin/transaksi", s.handleAdminTx)
+			r.Get("/admin/pengguna", s.handleAdminUsers)
+
+			// Admin master: Dosen & Staf penerima voucher
+			r.Get("/admin/staf", s.handleAdminStaff)
+			r.Get("/admin/staf/baru", s.handleAdminStaffNew)
+			r.Post("/admin/staf", s.handleAdminStaffCreate)
+			r.Get("/admin/staf/{id}", s.handleAdminStaffEdit)
+			r.Post("/admin/staf/{id}", s.handleAdminStaffUpdate)
+			r.Post("/admin/staf/{id}/toggle", s.handleAdminStaffToggle)
+			r.Post("/admin/staf/{id}/hapus", s.handleAdminStaffDelete)
+
+			// Admin master: tenant, koneksi HP, menu kantin.
+			r.Get("/admin/tenant", s.handleAdminTenants)
+			r.Get("/admin/tenant/baru", s.handleAdminTenantNew)
+			r.Post("/admin/tenant", s.handleAdminTenantCreate)
+			r.Get("/admin/tenant/{id}", s.handleAdminTenantShow)
+			r.Post("/admin/tenant/{id}", s.handleAdminTenantUpdate)
+			r.Post("/admin/tenant/{id}/hapus", s.handleAdminTenantDelete)
+			r.Post("/admin/tenant/{id}/kode", s.handleAdminCode)
+			r.Post("/admin/tenant/{id}/putus", s.handleAdminRevoke)
+			r.Post("/admin/tenant/{id}/menu", s.handleAdminMenuCreate)
+			r.Post("/admin/tenant/{id}/menu/{mid}", s.handleAdminMenuUpdate)
+			r.Post("/admin/tenant/{id}/menu/{mid}/hapus", s.handleAdminMenuDelete)
+		})
+
+		// Portal Biro Keuangan — halaman login terbuka, dashboard dilindungi middleware.
+		r.Get("/finance/masuk", s.handleFinanceLoginPage)
+		r.Post("/finance/masuk", s.handleFinanceLogin)
+		r.Get("/finance/keluar", s.handleFinanceLogout)
+		r.Post("/finance/keluar", s.handleFinanceLogout)
+		r.Group(func(r chi.Router) {
+			r.Use(s.requireFinance)
+			r.Get("/finance", s.handleFinanceHome)
+			r.Get("/finance/transaksi", s.handleFinanceTx)
+			r.Get("/finance/pencairan", s.handleFinancePayouts)
+		})
 	}
+
 	return r
 }
 
