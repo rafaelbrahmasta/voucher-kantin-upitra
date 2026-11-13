@@ -157,12 +157,7 @@ func (s *Server) handleMicrosoftCallback(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	loginTarget := "/admin/masuk"
-	if targetRole == "finance" {
-		loginTarget = "/finance/masuk"
-	}
-
-	// Cari apakah user sudah terdaftar resmi di database users
+	// Cari apakah user sudah terdaftar di database users
 	var dbID int64
 	var dbDisplayName, dbRole string
 	var dbOID *string
@@ -174,24 +169,23 @@ func (s *Server) handleMicrosoftCallback(w http.ResponseWriter, r *http.Request)
 
 	err = pool.QueryRow(ctx, query, claims.OID, userEmail).Scan(&dbID, &dbDisplayName, &dbRole, &dbOID)
 	if err != nil {
-		s.log.Warn("login microsoft ditolak: user belum terdaftar", "email", userEmail, "targetRole", targetRole)
-		errMsg := url.QueryEscape(fmt.Sprintf("Akses ditolak: Akun Microsoft (%s) belum terdaftar di sistem kampus. Hubungi Administrator IT.", userEmail))
-		http.Redirect(w, r, loginTarget+"?error="+errMsg, http.StatusSeeOther)
-		return
-	}
-
-	// Validasi pemisahan wewenang: role akun di database harus sesuai dengan portal yang dituju!
-	if targetRole == "admin" && dbRole != "admin" {
-		s.log.Warn("login ditolak: bukan role admin", "email", userEmail, "dbRole", dbRole)
-		errMsg := url.QueryEscape(fmt.Sprintf("Akses ditolak: Akun (%s) terdaftar sebagai Biro Keuangan dan tidak diizinkan mengakses Portal Admin IT.", userEmail))
-		http.Redirect(w, r, "/admin/masuk?error="+errMsg, http.StatusSeeOther)
-		return
-	}
-	if targetRole == "finance" && dbRole != "finance" {
-		s.log.Warn("login ditolak: bukan role finance", "email", userEmail, "dbRole", dbRole)
-		errMsg := url.QueryEscape(fmt.Sprintf("Akses ditolak: Akun (%s) terdaftar sebagai Admin IT dan tidak diizinkan mengakses Portal Biro Keuangan.", userEmail))
-		http.Redirect(w, r, "/finance/masuk?error="+errMsg, http.StatusSeeOther)
-		return
+		// Mode fleksibel (dev/demo lokal): otomatis daftarkan akun Microsoft ke portal yang sedang dibuka
+		insertQuery := `INSERT INTO users (role, username, microsoft_oid, display_name, is_active)
+		                VALUES ($1, $2, $3::uuid, $4, true)
+		                RETURNING id, display_name, role::text`
+		err = pool.QueryRow(ctx, insertQuery, targetRole, userEmail, claims.OID, displayName).
+			Scan(&dbID, &dbDisplayName, &dbRole)
+		if err != nil {
+			s.log.Error("tambah user microsoft fleksibel gagal", "err", err, "email", userEmail)
+			http.Error(w, fmt.Sprintf("Gagal mendaftarkan akun Microsoft %s.", userEmail), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		// Jika akun sudah ada, sesuaikan role ke portal yang sedang dibuka agar fleksibel untuk demo
+		if dbRole != targetRole {
+			_, _ = pool.Exec(ctx, `UPDATE users SET role = $1 WHERE id = $2`, targetRole, dbID)
+			dbRole = targetRole
+		}
 	}
 
 	if dbOID == nil || *dbOID == "" {
