@@ -145,17 +145,20 @@ func (g *GraphMailer) Send(ctx context.Context, m Message) error {
 		})
 	}
 
-	payload := map[string]any{
-		"message": map[string]any{
-			"subject": m.Subject,
-			"body": map[string]string{
-				"contentType": "HTML",
-				"content":     m.HTML,
-			},
-			"toRecipients": []recipient{newRecipient(m.To)},
-			"attachments":  atts,
+	msgPayload := map[string]any{
+		"subject": m.Subject,
+		"body": map[string]string{
+			"contentType": "HTML",
+			"content":     m.HTML,
 		},
-		// saveToSentItems: true agar tersimpan di Sent Items mailbox pengirim
+		"toRecipients": []recipient{newRecipient(m.To)},
+	}
+	if len(atts) > 0 {
+		msgPayload["attachments"] = atts
+	}
+
+	payload := map[string]any{
+		"message":         msgPayload,
 		"saveToSentItems": true,
 	}
 
