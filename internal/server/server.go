@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -157,6 +158,39 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/api/menu", s.handleAPIMenu)
 		r.Post("/api/scan", s.handleScan)
 		r.Post("/api/scan/code", s.handleScanCode)
+
+		// REST API untuk React SPA (Auth, Admin IT, Biro Keuangan)
+		r.Get("/api/auth/me", s.handleAPIAuthMe)
+		r.Post("/api/auth/login", s.handleAPILogin)
+		r.Post("/api/auth/logout", s.handleAPILogout)
+
+		r.Get("/api/admin/summary", s.handleAPIAdminSummary)
+		r.Get("/api/admin/staff", s.handleAPIAdminStaffList)
+		r.Get("/api/admin/staff/{id}", s.handleAPIAdminStaffGet)
+		r.Post("/api/admin/staff", s.handleAPIAdminStaffCreate)
+		r.Put("/api/admin/staff/{id}", s.handleAPIAdminStaffUpdate)
+		r.Post("/api/admin/staff/{id}", s.handleAPIAdminStaffUpdate)
+		r.Post("/api/admin/staff/{id}/toggle", s.handleAPIAdminStaffToggle)
+		r.Delete("/api/admin/staff/{id}", s.handleAPIAdminStaffDelete)
+		r.Post("/api/admin/staff/{id}/hapus", s.handleAPIAdminStaffDelete)
+
+		r.Get("/api/admin/tenants", s.handleAPIAdminTenantsList)
+		r.Get("/api/admin/tenants/{id}", s.handleAPIAdminTenantGet)
+		r.Post("/api/admin/tenants", s.handleAPIAdminTenantCreate)
+		r.Put("/api/admin/tenants/{id}", s.handleAPIAdminTenantUpdate)
+		r.Post("/api/admin/tenants/{id}", s.handleAPIAdminTenantUpdate)
+		r.Delete("/api/admin/tenants/{id}", s.handleAPIAdminTenantDelete)
+		r.Post("/api/admin/tenants/{id}/hapus", s.handleAPIAdminTenantDelete)
+		r.Post("/api/admin/tenants/{id}/code", s.handleAPIAdminTenantCode)
+		r.Post("/api/admin/tenants/{id}/revoke", s.handleAPIAdminTenantRevoke)
+
+		r.Get("/api/admin/transactions", s.handleAPIAdminTx)
+
+		// Finance API
+		r.Get("/api/finance/summary", s.handleAPIFinanceSummary)
+		r.Get("/api/finance/payouts", s.handleAPIFinancePayouts)
+		r.Get("/api/finance/transactions", s.handleAPIAdminTx)
+
 		r.Get("/preview-voucher", func(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, "preview_email_voucher.html")
 		})
@@ -210,9 +244,27 @@ func (s *Server) Handler() http.Handler {
 			r.Get("/finance/transaksi", s.handleFinanceTx)
 			r.Get("/finance/pencairan", s.handleFinancePayouts)
 		})
+
+		// Serve React SPA dari frontend/dist/ agar Microsoft login callback
+		// dapat redirect ke port yang sama (8080) tanpa masalah cookie cross-port.
+		// Vite dibangun dengan base='/app/' sehingga semua asset berada di /app/assets/*.
+		if distFS, err := fs.Sub(os.DirFS("frontend"), "dist"); err == nil {
+			distServer := http.StripPrefix("/app/", http.FileServer(http.FS(distFS)))
+			// Asset statis: /app/assets/*, /app/vite.svg, dsb.
+			r.Handle("/app/assets/*", distServer)
+			r.Handle("/app/vite.svg", distServer)
+			// Semua path /app/... diarahkan ke React SPA (index.html).
+			r.Get("/app", s.serveReactSPA)
+			r.Get("/app/*", s.serveReactSPA)
+		}
 	}
 
 	return r
+}
+
+// serveReactSPA menyajikan index.html milik React untuk semua route SPA.
+func (s *Server) serveReactSPA(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "frontend/dist/index.html")
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -221,7 +273,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin") // tidak membocorkan alamat ke situs lain, tapi Origin form POST tetap benar
 		h.Set("Permissions-Policy", "camera=(self), microphone=(), geolocation=()")
-		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
 	})
 }

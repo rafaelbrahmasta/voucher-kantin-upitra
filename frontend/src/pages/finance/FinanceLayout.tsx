@@ -1,0 +1,148 @@
+import React, { useEffect, useState } from 'react'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Coins, LayoutDashboard, HandCoins, ReceiptText, LogOut } from 'lucide-react'
+import { api } from '../../services/api'
+import { AuthSession } from '../../types'
+
+export default function FinanceLayout() {
+  const navigate = useNavigate()
+  const [session, setSession] = useState<AuthSession | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    try {
+      const data = await api.auth.me()
+      if (!data.authenticated || data.role !== 'finance') {
+        // Auto-login for seamless dev preview if not yet logged in
+        try {
+          const loginRes = await api.auth.login('finance')
+          setSession({ authenticated: true, role: 'finance', displayName: loginRes.displayName })
+        } catch {
+          navigate('/finance/masuk')
+        }
+      } else {
+        setSession(data)
+      }
+    } catch (err) {
+      console.error('Auth error', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout()
+      navigate('/finance/masuk')
+    } catch (err) {
+      console.error('Logout error', err)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center text-slate-300">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm">Memuat Portal Biro Keuangan...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const navItems = [
+    { to: '/finance', label: 'Ringkasan Kas', icon: LayoutDashboard, end: true },
+    { to: '/finance/pencairan', label: 'Rekap Pencairan Stan', icon: HandCoins, end: false },
+    { to: '/finance/transaksi', label: 'Audit Transaksi', icon: ReceiptText, end: false },
+  ]
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+      {/* Top Header */}
+      <header className="sticky top-0 z-40 bg-slate-900/80 backdrop-blur-md border-b border-white/10 px-4 sm:px-8 py-3.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          {/* Logo & Portal Title */}
+          <div className="flex items-center gap-3.5">
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shadow-amber-500/20 group-hover:scale-105 transition-transform">
+                <Coins className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="font-bold text-sm sm:text-base leading-tight text-white tracking-wide">
+                    Biro Keuangan
+                  </h1>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+                    Subsidi Voucher
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400">Universitas Pignatelli Triputra</p>
+              </div>
+            </Link>
+          </div>
+
+          {/* User Badge & Logout */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 bg-slate-800/80 border border-white/10 px-3.5 py-1.5 rounded-full">
+              <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></div>
+              <span className="text-xs font-medium text-slate-200">
+                {session?.displayName || 'Biro Keuangan UPITRA'}
+              </span>
+              <span className="text-[10px] bg-amber-500/30 text-amber-300 px-2 py-0.5 rounded-md font-semibold">
+                Finance
+              </span>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 text-xs font-medium text-rose-300 hover:text-white bg-rose-500/10 hover:bg-rose-600/80 border border-rose-500/30 px-3 py-1.5 rounded-lg transition-all"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Keluar</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Navigation Subheader */}
+      <nav className="bg-slate-900 border-b border-white/5 px-4 sm:px-8">
+        <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto py-2.5 scrollbar-none">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-200 whitespace-nowrap ${
+                    isActive
+                      ? 'bg-amber-600 text-white shadow-md shadow-amber-500/30 border border-amber-400/30'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* Main Outlet */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-8">
+        <Outlet />
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 bg-slate-900/60 px-6 py-4 text-center text-xs text-slate-500">
+        © 2026 Universitas Pignatelli Triputra · Sistem Voucher Kantin Digital Kampus
+      </footer>
+    </div>
+  )
+}

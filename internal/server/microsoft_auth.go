@@ -197,7 +197,11 @@ func (s *Server) handleMicrosoftCallback(w http.ResponseWriter, r *http.Request)
 		dbDisplayName = displayName
 	}
 
-	// Bersihkan sesi portal seberang dan pasang cookie sesi portal yang dituju
+	// Bersihkan sesi portal seberang dan pasang cookie sesi portal yang dituju.
+	// Di mode dev, redirect ke React SPA yang di-serve Go di path /app/...
+	// sehingga cookie berjalan di port yang sama (8080) tanpa masalah cross-origin.
+	reactPrefix := "/app"
+
 	if targetRole == "admin" {
 		s.clearAdminCookie(w, r, financeCookie)
 		s.setAdminCookie(w, r, adminSession{
@@ -205,7 +209,7 @@ func (s *Server) handleMicrosoftCallback(w http.ResponseWriter, r *http.Request)
 			DisplayName: dbDisplayName,
 			Role:        dbRole,
 		}, adminCookie)
-		http.Redirect(w, r, "/admin", http.StatusSeeOther)
+		http.Redirect(w, r, reactPrefix+"/admin", http.StatusSeeOther)
 	} else {
 		s.clearAdminCookie(w, r, adminCookie)
 		s.setAdminCookie(w, r, adminSession{
@@ -213,7 +217,7 @@ func (s *Server) handleMicrosoftCallback(w http.ResponseWriter, r *http.Request)
 			DisplayName: dbDisplayName,
 			Role:        dbRole,
 		}, financeCookie)
-		http.Redirect(w, r, "/finance", http.StatusSeeOther)
+		http.Redirect(w, r, reactPrefix+"/finance", http.StatusSeeOther)
 	}
 }
 

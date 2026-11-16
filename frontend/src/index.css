@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom laser animation for QR camera scanner */
+@keyframes laserSweep {
+  0% {
+    top: 10%;
+    opacity: 0.8;
+  }
+  50% {
+    top: 90%;
+    opacity: 1;
+  }
+  100% {
+    top: 10%;
+    opacity: 0.8;
+  }
+}
+
+.animate-laser {
+  animation: laserSweep 2s ease-in-out infinite;
+}
