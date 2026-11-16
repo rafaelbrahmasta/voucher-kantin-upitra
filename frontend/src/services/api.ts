@@ -189,6 +189,13 @@ export const api = {
     getToday: () => request<TodayData>('/api/today'),
     menu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
     getMenu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
+    pair: (codeOrTenant: { code?: string; tenant_id?: number }) =>
+      request<{ ok: boolean; tenant_id?: number; stall?: string; error?: string }>('/api/scan/pair', {
+        method: 'POST',
+        body: JSON.stringify(codeOrTenant),
+      }),
+    getTenants: () =>
+      request<{ tenants: Array<{ id: number; name: string; stall: string }> }>('/api/scan/tenants'),
     logout: () => request<{ ok: boolean }>('/keluar', { method: 'POST' }),
   },
 }

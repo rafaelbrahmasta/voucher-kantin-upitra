@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"voucher-kantin/internal/master"
@@ -268,4 +269,86 @@ func (s *Server) handleScanCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.finish(r, tid, res, in.Items))
+}
+
+// handleAPIScanPair memproses pairing perangkat HP kasir stan via kode pairing atau pilihan stan langsung.
+func (s *Server) handleAPIScanPair(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Code     string `json:"code"`
+		TenantID int64  `json:"tenant_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "format data tidak valid"})
+		return
+	}
+
+	if in.TenantID > 0 {
+		ver, err := s.deps.Master.TenantVersion(r.Context(), in.TenantID)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Stan kantin tidak ditemukan atau tidak aktif"})
+			return
+		}
+		ss := master.Session{TenantID: in.TenantID, Version: ver}
+		s.setSession(w, r, ss)
+		tenant, _ := s.deps.Master.GetTenant(r.Context(), in.TenantID)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"tenant_id": ss.TenantID,
+			"stall":     tenant.Name,
+		})
+		return
+	}
+
+	rawCode := strings.TrimSpace(in.Code)
+	if rawCode == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": "Kode pairing wajib diisi"})
+		return
+	}
+
+	ss, err := s.deps.Master.Redeem(r.Context(), rawCode)
+	if errors.Is(err, master.ErrBadCode) {
+		writeJSON(w, http.StatusBadRequest, map[string]any{
+			"ok":    false,
+			"error": "Kode pairing tidak valid atau sudah kedaluwarsa. Minta kode baru dari Admin IT.",
+		})
+		return
+	}
+	if err != nil {
+		s.log.Error("redeem code", "err", err)
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": "Gagal memproses kode pairing"})
+		return
+	}
+
+	s.setSession(w, r, ss)
+	tenant, err := s.deps.Master.GetTenant(r.Context(), ss.TenantID)
+	stallName := "Stan Kantin"
+	if err == nil {
+		stallName = tenant.Name
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":        true,
+		"tenant_id": ss.TenantID,
+		"stall":     stallName,
+	})
+}
+
+// handleAPIScanTenants mengembalikan daftar stan aktif untuk pilihan cepat di mode kasir.
+func (s *Server) handleAPIScanTenants(w http.ResponseWriter, r *http.Request) {
+	tenants, err := s.deps.Master.ListTenants(r.Context())
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"error": "gagal memuat daftar stan"})
+		return
+	}
+	var out []map[string]any
+	for _, t := range tenants {
+		if t.Active {
+			out = append(out, map[string]any{
+				"id":    t.ID,
+				"name":  t.Name,
+				"stall": t.Stall,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tenants": out})
 }

@@ -154,6 +154,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/api/menu", s.handleAPIMenu)
 		r.Post("/api/scan", s.handleScan)
 		r.Post("/api/scan/code", s.handleScanCode)
+		r.Post("/api/scan/pair", s.handleAPIScanPair)
+		r.Get("/api/scan/tenants", s.handleAPIScanTenants)
 
 		// REST API untuk React SPA (Auth, Admin IT, Biro Keuangan)
 		r.Get("/api/auth/me", s.handleAPIAuthMe)
