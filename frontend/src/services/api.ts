@@ -3,7 +3,11 @@ import { Staff, Tenant, Transaction, AdminSummaryData, AuthSession, MenuItemScan
 const API_BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const cleanPath = path.startsWith('/api/') || path === '/api'
+    ? path
+    : `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
+
+  const res = await fetch(cleanPath, {
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -12,8 +16,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   })
 
   if (!res.ok) {
-    const errorData = await res.json().catch(() => ({ error: 'Terjadi kesalahan sistem' }))
-    throw new Error(errorData.error || `HTTP ${res.status}`)
+    const errorData = await res.json().catch(() => null)
+    const message = errorData?.error || errorData?.message || `Terjadi kesalahan (HTTP ${res.status})`
+    throw new Error(message)
   }
 
   return res.json()
@@ -160,14 +165,14 @@ export const api = {
 
   // Kasir / Tenant (pakai cookie sesi kasir)
   kasir: {
-    me: () => request<AuthSession>('/api/auth/me'),
+    me: () => request<AuthSession>('/auth/me'),
     scan: (qr: string, items?: Array<{ id: number; qty: number }>) =>
-      request<ScanResult>('/api/scan', {
+      request<ScanResult>('/scan', {
         method: 'POST',
         body: JSON.stringify({ qr, items: items || [] }),
       }),
     scanCode: (code: string, items?: Array<{ id: number; qty: number }>) =>
-      request<ScanResult>('/api/scan/code', {
+      request<ScanResult>('/scan/code', {
         method: 'POST',
         body: JSON.stringify({ code, items: items || [] }),
       }),
@@ -175,27 +180,27 @@ export const api = {
       // Jika format kode pendek 8-9 karakter (xxxx-xxxx atau xxxxxxxx), gunakan endpoint kode
       const clean = payload.trim().replace('-', '')
       if (clean.length === 8 && /^[a-zA-Z0-9]+$/.test(clean)) {
-        return request<ScanResult>('/api/scan/code', {
+        return request<ScanResult>('/scan/code', {
           method: 'POST',
           body: JSON.stringify({ code: payload.trim(), items: items || [] }),
         })
       }
-      return request<ScanResult>('/api/scan', {
+      return request<ScanResult>('/scan', {
         method: 'POST',
         body: JSON.stringify({ qr: payload.trim(), items: items || [] }),
       })
     },
-    today: () => request<TodayData>('/api/today'),
-    getToday: () => request<TodayData>('/api/today'),
-    menu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
-    getMenu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
+    today: () => request<TodayData>('/today'),
+    getToday: () => request<TodayData>('/today'),
+    menu: () => request<{ items: MenuItemScan[] }>('/menu'),
+    getMenu: () => request<{ items: MenuItemScan[] }>('/menu'),
     pair: (codeOrTenant: { code?: string; tenant_id?: number }) =>
-      request<{ ok: boolean; tenant_id?: number; stall?: string; error?: string }>('/api/scan/pair', {
+      request<{ ok: boolean; tenant_id?: number; stall?: string; error?: string }>('/scan/pair', {
         method: 'POST',
         body: JSON.stringify(codeOrTenant),
       }),
     getTenants: () =>
-      request<{ tenants: Array<{ id: number; name: string; stall: string }> }>('/api/scan/tenants'),
-    logout: () => request<{ ok: boolean }>('/keluar', { method: 'POST' }),
+      request<{ tenants: Array<{ id: number; name: string; stall: string }> }>('/scan/tenants'),
+    logout: () => fetch('/keluar', { method: 'POST' }).then(() => ({ ok: true })),
   },
 }
