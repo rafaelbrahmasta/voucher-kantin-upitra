@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"voucher-kantin/internal/idfmt"
 	"voucher-kantin/internal/master"
@@ -212,15 +213,35 @@ func (s *Server) handleAPIAdminStaffList(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	type staffOut struct {
+		ID        int64     `json:"id"`
+		NIP       string    `json:"nip"`
+		Name      string    `json:"name"`
+		Email     string    `json:"email"`
+		Unit      string    `json:"unit"`
+		IsActive  bool      `json:"is_active"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+
 	totalActive := 0
+	out := make([]staffOut, 0, len(list))
 	for _, st := range list {
 		if st.IsActive {
 			totalActive++
 		}
+		out = append(out, staffOut{
+			ID:        st.ID,
+			NIP:       st.NIP,
+			Name:      st.Name,
+			Email:     st.Email,
+			Unit:      st.Unit,
+			IsActive:  st.IsActive,
+			CreatedAt: st.CreatedAt,
+		})
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"staff":       list,
+		"staff":       out,
 		"total":       len(list),
 		"totalActive": totalActive,
 		"q":           q,
@@ -241,7 +262,17 @@ func (s *Server) handleAPIAdminStaffGet(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"staff": st})
+	writeJSON(w, http.StatusOK, map[string]any{
+		"staff": map[string]any{
+			"id":         st.ID,
+			"nip":        st.NIP,
+			"name":       st.Name,
+			"email":      st.Email,
+			"unit":       st.Unit,
+			"is_active":  st.IsActive,
+			"created_at": st.CreatedAt,
+		},
+	})
 }
 
 // handleAPIAdminStaffCreate menambahkan staf baru via JSON.
@@ -367,7 +398,36 @@ func (s *Server) handleAPIAdminTenantsList(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{"tenants": list})
+	type tenantOut struct {
+		ID          int64  `json:"id"`
+		Name        string `json:"name"`
+		Stall       string `json:"stall"`
+		Owner       string `json:"owner"`
+		BankName    string `json:"bank_name"`
+		BankAccount string `json:"bank_account"`
+		Active      bool   `json:"active"`
+		HasDevice   bool   `json:"has_device"`
+		HasCode     bool   `json:"has_code"`
+		MenuCount   int    `json:"menu_count"`
+	}
+
+	out := make([]tenantOut, 0, len(list))
+	for _, t := range list {
+		out = append(out, tenantOut{
+			ID:          t.ID,
+			Name:        t.Name,
+			Stall:       t.Stall,
+			Owner:       t.Owner,
+			BankName:    t.BankName,
+			BankAccount: t.BankAccount,
+			Active:      t.Active,
+			HasDevice:   !t.HasCode, // jika tidak ada kode gantung, berarti perangkat sudah tersambung
+			HasCode:     t.HasCode,
+			MenuCount:   t.MenuCount,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"tenants": out})
 }
 
 // handleAPIAdminTenantGet mengembalikan detail satu tenant beserta daftarmenu.
@@ -387,8 +447,19 @@ func (s *Server) handleAPIAdminTenantGet(w http.ResponseWriter, r *http.Request)
 	menu, _ := s.deps.Master.ListMenu(r.Context(), id, false)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"tenant": t,
-		"menu":   menu,
+		"tenant": map[string]any{
+			"id":           t.ID,
+			"name":         t.Name,
+			"stall":        t.Stall,
+			"owner":        t.Owner,
+			"bank_name":    t.BankName,
+			"bank_account": t.BankAccount,
+			"active":       t.Active,
+			"has_device":   !t.HasCode,
+			"has_code":     t.HasCode,
+			"menu_count":   t.MenuCount,
+		},
+		"menu": menu,
 	})
 }
 
