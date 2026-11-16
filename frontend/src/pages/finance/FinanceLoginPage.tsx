@@ -22,7 +22,7 @@ export default function FinanceLoginPage() {
   }
 
   const handleMicrosoftLogin = () => {
-    window.location.href = '/auth/microsoft'
+    window.location.href = '/auth/microsoft?role=finance'
   }
 
   return (

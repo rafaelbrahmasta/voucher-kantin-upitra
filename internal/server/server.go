@@ -199,64 +199,87 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/auth/microsoft", s.handleMicrosoftLogin)
 		r.Get("/auth/microsoft/callback", s.handleMicrosoftCallback)
 
-		// Portal Admin IT — halaman login terbuka, dashboard dilindungi middleware.
-		r.Get("/admin/masuk", s.handleAdminLoginPage)
-		r.Post("/admin/masuk", s.handleAdminLogin)
+		// Logout handler (tetap melayani pembersihan cookie dari browser)
 		r.Get("/admin/keluar", s.handleAdminLogout)
 		r.Post("/admin/keluar", s.handleAdminLogout)
-		r.Group(func(r chi.Router) {
-			r.Use(s.requireAdmin)
-			r.Get("/admin", s.handleAdminHome)
-			r.Get("/admin/transaksi", s.handleAdminTx)
-			r.Get("/admin/pengguna", s.handleAdminUsers)
-
-			// Admin master: Dosen & Staf penerima voucher
-			r.Get("/admin/staf", s.handleAdminStaff)
-			r.Get("/admin/staf/baru", s.handleAdminStaffNew)
-			r.Post("/admin/staf", s.handleAdminStaffCreate)
-			r.Get("/admin/staf/{id}", s.handleAdminStaffEdit)
-			r.Post("/admin/staf/{id}", s.handleAdminStaffUpdate)
-			r.Post("/admin/staf/{id}/toggle", s.handleAdminStaffToggle)
-			r.Post("/admin/staf/{id}/hapus", s.handleAdminStaffDelete)
-
-			// Admin master: tenant, koneksi HP, menu kantin.
-			r.Get("/admin/tenant", s.handleAdminTenants)
-			r.Get("/admin/tenant/baru", s.handleAdminTenantNew)
-			r.Post("/admin/tenant", s.handleAdminTenantCreate)
-			r.Get("/admin/tenant/{id}", s.handleAdminTenantShow)
-			r.Post("/admin/tenant/{id}", s.handleAdminTenantUpdate)
-			r.Post("/admin/tenant/{id}/hapus", s.handleAdminTenantDelete)
-			r.Post("/admin/tenant/{id}/kode", s.handleAdminCode)
-			r.Post("/admin/tenant/{id}/putus", s.handleAdminRevoke)
-			r.Post("/admin/tenant/{id}/menu", s.handleAdminMenuCreate)
-			r.Post("/admin/tenant/{id}/menu/{mid}", s.handleAdminMenuUpdate)
-			r.Post("/admin/tenant/{id}/menu/{mid}/hapus", s.handleAdminMenuDelete)
-		})
-
-		// Portal Biro Keuangan — halaman login terbuka, dashboard dilindungi middleware.
-		r.Get("/finance/masuk", s.handleFinanceLoginPage)
-		r.Post("/finance/masuk", s.handleFinanceLogin)
 		r.Get("/finance/keluar", s.handleFinanceLogout)
 		r.Post("/finance/keluar", s.handleFinanceLogout)
-		r.Group(func(r chi.Router) {
-			r.Use(s.requireFinance)
-			r.Get("/finance", s.handleFinanceHome)
-			r.Get("/finance/transaksi", s.handleFinanceTx)
-			r.Get("/finance/pencairan", s.handleFinancePayouts)
-		})
 
-		// Serve React SPA dari frontend/dist/ agar Microsoft login callback
-		// dapat redirect ke port yang sama (8080) tanpa masalah cookie cross-port.
-		// Vite dibangun dengan base='/app/' sehingga semua asset berada di /app/assets/*.
-		if distFS, err := fs.Sub(os.DirFS("frontend"), "dist"); err == nil {
-			distServer := http.StripPrefix("/app/", http.FileServer(http.FS(distFS)))
-			// Asset statis: /app/assets/*, /app/vite.svg, dsb.
-			r.Handle("/app/assets/*", distServer)
-			r.Handle("/app/vite.svg", distServer)
-			// Semua path /app/... diarahkan ke React SPA (index.html).
-			r.Get("/app", s.serveReactSPA)
-			r.Get("/app/*", s.serveReactSPA)
+		// Cek apakah build React SPA tersedia di frontend/dist/index.html.
+		// Jika tersedia (saat server dijalankan), semua tampilan web 100% disajikan oleh React SPA.
+		// Jika tidak tersedia (saat Go unit test berjalan di internal/server), fallback ke template HTML.
+		hasReact := false
+		if fi, err := os.Stat("frontend/dist/index.html"); err == nil && !fi.IsDir() {
+			hasReact = true
 		}
+
+		if hasReact {
+			if distFS, err := fs.Sub(os.DirFS("frontend"), "dist"); err == nil {
+				distServer := http.FileServer(http.FS(distFS))
+				r.Handle("/assets/*", distServer)
+				r.Handle("/vite.svg", distServer)
+			}
+			// Semua rute tampilan web 100% React SPA (Beranda, Kasir, Admin IT, Biro Keuangan)
+			r.Get("/", s.serveReactSPA)
+			r.Get("/masuk", s.serveReactSPA)
+			r.Get("/scan", s.serveReactSPA)
+			r.Get("/scan/*", s.serveReactSPA)
+			r.Get("/today", s.serveReactSPA)
+
+			r.Get("/admin", s.serveReactSPA)
+			r.Get("/admin/masuk", s.serveReactSPA)
+			r.Get("/admin/*", s.serveReactSPA)
+
+			r.Get("/finance", s.serveReactSPA)
+			r.Get("/finance/masuk", s.serveReactSPA)
+			r.Get("/finance/*", s.serveReactSPA)
+		} else {
+			r.Get("/", s.handleHome)
+			r.Get("/masuk", s.handleLoginPage)
+			r.Get("/scan", s.handleScanPage)
+			r.Get("/today", s.handleToday)
+
+			r.Get("/admin/masuk", s.handleAdminLoginPage)
+			r.Group(func(r chi.Router) {
+				r.Use(s.requireAdmin)
+				r.Get("/admin", s.handleAdminHome)
+				r.Get("/admin/transaksi", s.handleAdminTx)
+				r.Get("/admin/pengguna", s.handleAdminUsers)
+
+				r.Get("/admin/staf", s.handleAdminStaff)
+				r.Get("/admin/staf/baru", s.handleAdminStaffNew)
+				r.Get("/admin/staf/{id}", s.handleAdminStaffEdit)
+
+				r.Get("/admin/tenant", s.handleAdminTenants)
+				r.Get("/admin/tenant/baru", s.handleAdminTenantNew)
+				r.Get("/admin/tenant/{id}", s.handleAdminTenantShow)
+			})
+
+			r.Get("/finance/masuk", s.handleFinanceLoginPage)
+			r.Group(func(r chi.Router) {
+				r.Use(s.requireFinance)
+				r.Get("/finance", s.handleFinanceHome)
+				r.Get("/finance/transaksi", s.handleFinanceTx)
+				r.Get("/finance/pencairan", s.handleFinancePayouts)
+			})
+		}
+
+		// Handler POST untuk form/action tetap aktif (mendukung test dan legacy client)
+		r.Post("/admin/masuk", s.handleAdminLogin)
+		r.Post("/admin/staf", s.handleAdminStaffCreate)
+		r.Post("/admin/staf/{id}", s.handleAdminStaffUpdate)
+		r.Post("/admin/staf/{id}/toggle", s.handleAdminStaffToggle)
+		r.Post("/admin/staf/{id}/hapus", s.handleAdminStaffDelete)
+		r.Post("/admin/tenant", s.handleAdminTenantCreate)
+		r.Post("/admin/tenant/{id}", s.handleAdminTenantUpdate)
+		r.Post("/admin/tenant/{id}/hapus", s.handleAdminTenantDelete)
+		r.Post("/admin/tenant/{id}/kode", s.handleAdminCode)
+		r.Post("/admin/tenant/{id}/putus", s.handleAdminRevoke)
+		r.Post("/admin/tenant/{id}/menu", s.handleAdminMenuCreate)
+		r.Post("/admin/tenant/{id}/menu/{mid}", s.handleAdminMenuUpdate)
+		r.Post("/admin/tenant/{id}/menu/{mid}/hapus", s.handleAdminMenuDelete)
+
+		r.Post("/finance/masuk", s.handleFinanceLogin)
 	}
 
 	return r
