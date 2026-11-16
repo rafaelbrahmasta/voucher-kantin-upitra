@@ -101,11 +101,27 @@ pub async fn toggle_staff(pool: &PgPool, id: i64) -> Result<bool, sqlx::Error> {
     Ok(row.get("is_active"))
 }
 
-pub async fn delete_staff(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+pub async fn delete_staff(pool: &PgPool, id: i64) -> Result<(), String> {
+    // Cek apakah staf memiliki riwayat voucher di database
+    let count: (i64,) = sqlx::query_as("SELECT count(*) FROM vouchers WHERE staff_id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if count.0 > 0 {
+        return Err(format!(
+            "Dosen / Staf ini sudah memiliki {} riwayat voucher di sistem. Data tidak dapat dihapus permanen demi menjaga integritas laporan keuangan & audit transaksi kampus. Silakan gunakan tombol 'Nonaktifkan' (staf berstatus Nonaktif tidak akan menerima jatah voucher lagi).",
+            count.0
+        ));
+    }
+
     sqlx::query("DELETE FROM staff WHERE id = $1")
         .bind(id)
         .execute(pool)
-        .await?;
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 
@@ -196,11 +212,33 @@ pub async fn update_tenant(pool: &PgPool, id: i64, in_data: &TenantInput) -> Res
     Ok(())
 }
 
-pub async fn delete_tenant(pool: &PgPool, id: i64) -> Result<(), sqlx::Error> {
+pub async fn delete_tenant(pool: &PgPool, id: i64) -> Result<(), String> {
+    // Cek apakah tenant memiliki transaksi voucher
+    let count: (i64,) = sqlx::query_as("SELECT count(*) FROM vouchers WHERE used_by_tenant_id = $1")
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if count.0 > 0 {
+        return Err(format!(
+            "Stan / Tenant ini sudah memiliki {} riwayat transaksi. Data tidak dapat dihapus permanen demi integritas laporan keuangan. Silakan nonaktifkan status stan.",
+            count.0
+        ));
+    }
+
+    // Hapus menu stan jika belum ada transaksi
+    let _ = sqlx::query("DELETE FROM menu_items WHERE tenant_id = $1")
+        .bind(id)
+        .execute(pool)
+        .await;
+
     sqlx::query("DELETE FROM tenants WHERE id = $1")
         .bind(id)
         .execute(pool)
-        .await?;
+        .await
+        .map_err(|e| e.to_string())?;
+
     Ok(())
 }
 

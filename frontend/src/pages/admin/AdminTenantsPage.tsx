@@ -45,6 +45,7 @@ export default function AdminTenantsPage() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [toastMessage, setToastMessage] = useState('')
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null)
 
   useEffect(() => {
     loadTenants()
@@ -146,7 +147,10 @@ export default function AdminTenantsPage() {
       showToast('Stan kantin berhasil dihapus')
       loadTenants()
     } catch (err: any) {
-      alert(err.message || 'Gagal menghapus stan kantin')
+      setInfoModal({
+        title: 'Tidak Dapat Menghapus Stan Kantin',
+        message: err.message || 'Gagal menghapus stan kantin',
+      })
     }
   }
 
@@ -458,6 +462,47 @@ export default function AdminTenantsPage() {
             >
               Selesai & Tutup
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Info / Restriction Modal */}
+      {infoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-amber-200/60 overflow-hidden">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 mb-4 mx-auto">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+
+              <h3 className="text-base font-bold text-slate-900 text-center mb-2">
+                {infoModal.title}
+              </h3>
+
+              <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 mb-4">
+                <p className="text-xs text-amber-900 leading-relaxed text-left whitespace-pre-line">
+                  {infoModal.message}
+                </p>
+              </div>
+
+              <div className="text-[11px] text-slate-500 space-y-1.5 mb-5 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                <p className="font-semibold text-slate-700">💡 Mengapa ini terjadi?</p>
+                <p>
+                  Sistem menjaga <b>integritas riwayat transaksi dan pencairan dana</b>. Stan yang sudah memiliki transaksi tidak boleh dihapus agar rekapitulasi audit keuangan tetap akurat.
+                </p>
+                <p className="pt-1">
+                  <b>Solusi:</b> Silakan nonaktifkan stan melalui menu edit (centang status stan).
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInfoModal(null)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-sm"
+              >
+                Saya Mengerti
+              </button>
+            </div>
           </div>
         </div>
       )}

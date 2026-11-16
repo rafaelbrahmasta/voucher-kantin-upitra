@@ -27,6 +27,7 @@ export default function AdminStaffPage() {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null)
+  const [infoModal, setInfoModal] = useState<{ title: string; message: string } | null>(null)
   const [formData, setFormData] = useState({
     nip: '',
     name: '',
@@ -130,7 +131,10 @@ export default function AdminStaffPage() {
       setStaffList((prev) => prev.filter((s) => s.id !== id))
       showToast('Data dosen / staf berhasil dihapus')
     } catch (err: any) {
-      alert(err.message || 'Gagal menghapus data')
+      setInfoModal({
+        title: 'Tidak Dapat Menghapus Staf',
+        message: err.message || 'Gagal menghapus data',
+      })
     }
   }
 
@@ -492,6 +496,47 @@ export default function AdminStaffPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Info / Restriction Modal */}
+      {infoModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-amber-200/60 overflow-hidden">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-600 mb-4 mx-auto">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+
+              <h3 className="text-base font-bold text-slate-900 text-center mb-2">
+                {infoModal.title}
+              </h3>
+
+              <div className="bg-amber-50/70 border border-amber-200/60 rounded-xl p-3.5 mb-4">
+                <p className="text-xs text-amber-900 leading-relaxed text-left whitespace-pre-line">
+                  {infoModal.message}
+                </p>
+              </div>
+
+              <div className="text-[11px] text-slate-500 space-y-1.5 mb-5 bg-slate-50 p-3 rounded-xl border border-slate-200/60">
+                <p className="font-semibold text-slate-700">💡 Mengapa ini terjadi?</p>
+                <p>
+                  Sistem menjaga <b>integritas audit laporan keuangan</b>. Jika staf yang pernah memiliki riwayat voucher dihapus permanen, rekapitulasi dana dan kuitansi masa lalu akan kehilangan data pemilik transaksi.
+                </p>
+                <p className="pt-1">
+                  <b>Solusi:</b> Cukup klik tombol <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px]">Power (Nonaktifkan)</span> agar staf tidak menerima voucher baru lagi.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setInfoModal(null)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-sm"
+              >
+                Saya Mengerti
+              </button>
+            </div>
           </div>
         </div>
       )}
