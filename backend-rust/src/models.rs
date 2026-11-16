@@ -49,16 +49,24 @@ pub struct Tenant {
 #[derive(Clone, Debug, Deserialize)]
 pub struct TenantInput {
     pub name: String,
-    #[serde(default)]
     pub stall: String,
-    #[serde(default)]
     pub owner: String,
-    #[serde(default)]
     pub bank_name: String,
-    #[serde(default)]
     pub bank_account: String,
     #[serde(default = "default_true")]
     pub active: bool,
+}
+
+// ── Pengguna Sistem (Users) ───────────────────────────────────────
+
+#[derive(Clone, Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct User {
+    pub id: i64,
+    pub role: String,
+    pub username: Option<String>,
+    pub password_hash: Option<String>,
+    pub display_name: String,
+    pub is_active: bool,
 }
 
 // ── Menu Items ────────────────────────────────────────────────────

@@ -134,49 +134,123 @@ pub async fn handle_auth_login(
     jar: CookieJar,
     Json(payload): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<LoginResponse>), (StatusCode, Json<LoginResponse>)> {
-    let now = Utc::now();
-    let exp = now + chrono::Duration::hours(8);
-    let exp_unix = exp.timestamp();
+    let role = payload.role.as_str();
+    if role != "admin" && role != "finance" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(LoginResponse {
+                ok: false,
+                role: payload.role,
+                display_name: String::new(),
+                error: Some("Peran harus 'admin' atau 'finance'".to_string()),
+            }),
+        ));
+    }
 
-    let (cookie_name, display_name, user_id) = match payload.role.as_str() {
-        "admin" => (ADMIN_COOKIE, "Admin Super IT", 3i64),
-        "finance" => (FINANCE_COOKIE, "Biro Keuangan", 4i64),
-        _ => {
+    let identifier = payload.email.as_deref().unwrap_or("").trim();
+    let password = payload.password.as_deref().unwrap_or("").trim();
+
+    // Verifikasi kredensial ke database
+    let user = match crate::db::verify_user_login(&state.pool, role, identifier, password).await {
+        Ok(u) => u,
+        Err(err_msg) => {
             return Err((
-                StatusCode::BAD_REQUEST,
+                StatusCode::UNAUTHORIZED,
                 Json(LoginResponse {
                     ok: false,
                     role: payload.role,
                     display_name: String::new(),
-                    error: Some("Peran harus 'admin' atau 'finance'".to_string()),
+                    error: Some(err_msg),
                 }),
-            ))
+            ));
         }
     };
 
+    let now = Utc::now();
+    let exp = now + chrono::Duration::hours(8);
+    let exp_unix = exp.timestamp();
+
+    let cookie_name = if role == "admin" { ADMIN_COOKIE } else { FINANCE_COOKIE };
+
     let sess = AdminSession {
-        user_id,
-        display_name: display_name.to_string(),
-        role: payload.role.clone(),
+        user_id: user.id,
+        display_name: user.display_name.clone(),
+        role: role.to_string(),
     };
     let token = crypto::encode_admin_session(&state.config.qr_key, &sess, exp_unix);
 
-    let cookie = Cookie::build((cookie_name, token))
+    let mut cookie_builder = Cookie::build((cookie_name, token))
         .path("/")
         .http_only(true)
-        .same_site(SameSite::Lax)
-        .build();
+        .same_site(SameSite::Lax);
 
-    let updated_jar = jar.add(cookie);
+    if state.config.env != "dev" {
+        cookie_builder = cookie_builder.secure(true);
+    }
+
+    let updated_jar = jar.add(cookie_builder.build());
 
     Ok((
         updated_jar,
         Json(LoginResponse {
             ok: true,
             role: payload.role,
-            display_name: display_name.to_string(),
+            display_name: user.display_name,
             error: None,
         }),
+    ))
+}
+
+pub async fn admin_auth_middleware(
+    State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, (StatusCode, Json<serde_json::Value>)> {
+    let now_unix = Utc::now().timestamp();
+    if let Some(cookie) = jar.get(ADMIN_COOKIE) {
+        if let Some(sess) = crypto::decode_admin_session(&state.config.qr_key, cookie.value(), now_unix) {
+            if sess.role == "admin" {
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
+    Err((
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error": "Akses ditolak: Anda harus login sebagai Admin Super IT terlebih dahulu."
+        })),
+    ))
+}
+
+pub async fn finance_auth_middleware(
+    State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<axum::response::Response, (StatusCode, Json<serde_json::Value>)> {
+    let now_unix = Utc::now().timestamp();
+    if let Some(cookie) = jar.get(FINANCE_COOKIE) {
+        if let Some(sess) = crypto::decode_admin_session(&state.config.qr_key, cookie.value(), now_unix) {
+            if sess.role == "finance" || sess.role == "admin" {
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+    if let Some(cookie) = jar.get(ADMIN_COOKIE) {
+        if let Some(sess) = crypto::decode_admin_session(&state.config.qr_key, cookie.value(), now_unix) {
+            if sess.role == "admin" {
+                return Ok(next.run(req).await);
+            }
+        }
+    }
+
+    Err((
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({
+            "error": "Akses ditolak: Anda harus login sebagai Biro Keuangan atau Admin terlebih dahulu."
+        })),
     ))
 }
 

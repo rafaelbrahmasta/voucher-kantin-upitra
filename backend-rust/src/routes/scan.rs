@@ -49,20 +49,6 @@ pub async fn handle_scan_me(
         }
     }
 
-    // Fallback mode dev jika belum ada cookie
-    if state.config.env == "dev" && state.config.dev_tenant_id > 0 {
-        if let Ok(Some(tenant)) = crate::db::get_tenant(&state.pool, state.config.dev_tenant_id).await {
-            return Json(ScanMeResponse {
-                authenticated: true,
-                role: "tenant".to_string(),
-                tenant_id: Some(state.config.dev_tenant_id),
-                display_name: Some(tenant.name.clone()),
-                stall: Some(tenant.name),
-                stall_location: tenant.stall_location,
-            });
-        }
-    }
-
     Json(ScanMeResponse {
         authenticated: false,
         role: String::new(),
@@ -76,7 +62,6 @@ pub async fn handle_scan_me(
 #[derive(Deserialize)]
 pub struct PairRequest {
     pub code: Option<String>,
-    pub tenant_id: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -92,57 +77,27 @@ pub struct PairResponse {
 
 pub async fn handle_scan_pair(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     jar: CookieJar,
     Json(payload): Json<PairRequest>,
 ) -> Result<(CookieJar, Json<PairResponse>), (StatusCode, Json<PairResponse>)> {
+    let client_ip = get_client_ip(&headers);
+    if !state.rate_limiter_pair.check(&client_ip).await {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(PairResponse {
+                ok: false,
+                tenant_id: None,
+                stall: None,
+                error: Some("Terlalu banyak percobaan kode pairing salah. Silakan tunggu 1 menit.".to_string()),
+            }),
+        ));
+    }
+
     let now_unix = Utc::now().timestamp();
     let exp_unix = now_unix + (30 * 24 * 3600); // 30 hari
 
-    // 1. Pair via pilihan stan langsung (mode demo)
-    if let Some(t_id) = payload.tenant_id {
-        if t_id > 0 {
-            let ver = match crate::db::get_tenant_version(&state.pool, t_id).await {
-                Ok(Some(v)) => v,
-                _ => {
-                    return Err((
-                        StatusCode::BAD_REQUEST,
-                        Json(PairResponse {
-                            ok: false,
-                            tenant_id: None,
-                            stall: None,
-                            error: Some("Stan kantin tidak ditemukan atau tidak aktif".to_string()),
-                        }),
-                    ));
-                }
-            };
-
-            let sess = TenantSession { tenant_id: t_id, version: ver };
-            let token = crypto::encode_tenant_session(&state.config.qr_key, &sess, exp_unix);
-
-            let cookie = Cookie::build((TENANT_COOKIE, token))
-                .path("/")
-                .http_only(true)
-                .same_site(SameSite::Lax)
-                .build();
-
-            let tenant_name = match crate::db::get_tenant(&state.pool, t_id).await {
-                Ok(Some(t)) => t.name,
-                _ => "Stan Kantin".to_string(),
-            };
-
-            return Ok((
-                jar.add(cookie),
-                Json(PairResponse {
-                    ok: true,
-                    tenant_id: Some(t_id),
-                    stall: Some(tenant_name),
-                    error: None,
-                }),
-            ));
-        }
-    }
-
-    // 2. Pair via kode pairing 10 karakter
+    // Pair HANYA via kode pairing 10 karakter yang sah
     let raw_code = payload.code.unwrap_or_default().trim().to_string();
     if raw_code.is_empty() {
         return Err((
@@ -162,11 +117,14 @@ pub async fn handle_scan_pair(
             let sess = TenantSession { tenant_id: t_id, version: ver };
             let token = crypto::encode_tenant_session(&state.config.qr_key, &sess, exp_unix);
 
-            let cookie = Cookie::build((TENANT_COOKIE, token))
+            let mut cookie_builder = Cookie::build((TENANT_COOKIE, token))
                 .path("/")
                 .http_only(true)
-                .same_site(SameSite::Lax)
-                .build();
+                .same_site(SameSite::Lax);
+
+            if state.config.env != "dev" {
+                cookie_builder = cookie_builder.secure(true);
+            }
 
             let tenant_name = match crate::db::get_tenant(&state.pool, t_id).await {
                 Ok(Some(t)) => t.name,
@@ -174,7 +132,7 @@ pub async fn handle_scan_pair(
             };
 
             Ok((
-                jar.add(cookie),
+                jar.add(cookie_builder.build()),
                 Json(PairResponse {
                     ok: true,
                     tenant_id: Some(t_id),
@@ -219,6 +177,21 @@ pub async fn handle_scan_tenants(
     Json(serde_json::json!({ "tenants": options }))
 }
 
+fn get_client_ip(headers: &axum::http::HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_else(|| "127.0.0.1".to_string())
+}
+
 // ── Scan QR Endpoint ──────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -245,7 +218,7 @@ pub async fn handle_scan_qr(
                 at: None,
                 used_at: None,
                 tenant: None,
-                message: Some("Belum masuk sebagai kasir stan".to_string()),
+                message: Some("Kasir belum terhubung ke stan kantin. Silakan hubungkan lewat kode pairing terlebih dahulu.".to_string()),
                 order: None,
             }),
         ));
@@ -271,7 +244,7 @@ pub async fn handle_scan_qr(
     let token_hash = crypto::hash_token(&tok);
     let user_id = crate::db::get_tenant_user_id(&state.pool, tenant_id, state.config.dev_user_id).await;
 
-    let res = crate::db::scan_by_token_hash(&state.pool, &token_hash, tenant_id, user_id).await;
+    let res = crate::db::scan_by_token_hash(&state.pool, &token_hash, tenant_id, user_id, payload.items.as_deref()).await;
     match res {
         Ok(r) => Ok(Json(r)),
         Err(err) => {
@@ -304,9 +277,25 @@ pub struct ScanCodeRequest {
 
 pub async fn handle_scan_code(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     jar: CookieJar,
     Json(payload): Json<ScanCodeRequest>,
 ) -> Result<Json<ScanResult>, (StatusCode, Json<ScanResult>)> {
+    let client_ip = get_client_ip(&headers);
+    if !state.rate_limiter_code.check(&client_ip).await {
+        return Ok(Json(ScanResult {
+            result: "invalid".to_string(),
+            staff: None,
+            unit: None,
+            amount: None,
+            at: None,
+            used_at: None,
+            tenant: None,
+            message: Some("Terlalu banyak percobaan memasukkan kode salah. Silakan tunggu 1 menit.".to_string()),
+            order: None,
+        }));
+    }
+
     let now_unix = Utc::now().timestamp();
     let tenant_id = extract_tenant_id(&state, &jar, now_unix).await;
     if tenant_id <= 0 {
@@ -320,7 +309,7 @@ pub async fn handle_scan_code(
                 at: None,
                 used_at: None,
                 tenant: None,
-                message: Some("Belum masuk sebagai kasir stan".to_string()),
+                message: Some("Kasir belum terhubung ke stan kantin. Silakan hubungkan lewat kode pairing terlebih dahulu.".to_string()),
                 order: None,
             }),
         ));
@@ -348,7 +337,7 @@ pub async fn handle_scan_code(
     let code_hash = crypto::short_code_hash(&state.config.short_key, &date_str, &normalized);
     let user_id = crate::db::get_tenant_user_id(&state.pool, tenant_id, state.config.dev_user_id).await;
 
-    let res = crate::db::scan_by_short_code(&state.pool, &code_hash, today, tenant_id, user_id).await;
+    let res = crate::db::scan_by_short_code(&state.pool, &code_hash, today, tenant_id, user_id, payload.items.as_deref()).await;
     match res {
         Ok(r) => Ok(Json(r)),
         Err(err) => {
@@ -408,9 +397,6 @@ async fn extract_tenant_id(state: &AppState, jar: &CookieJar, now_unix: i64) -> 
                 return sess.tenant_id;
             }
         }
-    }
-    if state.config.env == "dev" {
-        return state.config.dev_tenant_id;
     }
     0
 }

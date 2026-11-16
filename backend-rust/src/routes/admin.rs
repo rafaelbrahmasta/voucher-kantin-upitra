@@ -256,8 +256,13 @@ pub async fn handle_transactions(
     Query(query): Query<TxQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let sql = r#"
-        SELECT v.used_at, s.name AS staff, s.unit, COALESCE(t.name, 'Stan Kantin') AS tenant,
-               v.amount, (v.status = 'void') AS voided
+        SELECT v.id, v.used_at, s.name AS staff, s.unit, COALESCE(t.name, 'Stan Kantin') AS tenant,
+               v.amount, (v.status = 'void') AS voided,
+               COALESCE((
+                   SELECT string_agg(vi.name || ' x' || vi.qty, ', ')
+                   FROM voucher_items vi
+                   WHERE vi.voucher_id = v.id
+               ), '') AS items
         FROM vouchers v
         JOIN staff s ON s.id = v.staff_id
         LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
@@ -283,7 +288,7 @@ pub async fn handle_transactions(
                 "Tenant": r.get::<String, _>("tenant"),
                 "Amount": r.get::<i32, _>("amount"),
                 "Voided": r.get::<bool, _>("voided"),
-                "Items": "",
+                "Items": r.get::<String, _>("items"),
             })
         })
         .collect();
@@ -305,4 +310,35 @@ pub async fn handle_transactions(
         "units": [],
         "tenants": tenant_options,
     })))
+}
+
+// ── Trigger Job Penerbitan Voucher (Admin IT) ─────────────────────
+
+#[derive(Deserialize)]
+pub struct IssueVoucherQuery {
+    pub date: Option<String>,
+    pub force: Option<bool>,
+}
+
+pub async fn handle_admin_issue_vouchers(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<Option<IssueVoucherQuery>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let target_date = payload
+        .as_ref()
+        .and_then(|p| p.date.as_deref())
+        .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
+    let force = payload.as_ref().and_then(|p| p.force).unwrap_or(false);
+
+    let summary = crate::issuer::run_issue_vouchers(
+        &state.pool,
+        &state.config.qr_key,
+        &state.config.short_key,
+        target_date,
+        force,
+    )
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e }))))?;
+
+    Ok(Json(serde_json::to_value(summary).unwrap()))
 }

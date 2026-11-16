@@ -21,7 +21,10 @@ impl Config {
         }
 
         let env_mode = env::var("APP_ENV").unwrap_or_else(|_| "dev".to_string());
-        let addr = env::var("APP_ADDR").unwrap_or_else(|_| "0.0.0.0:8080".to_string());
+        let addr = env::var("APP_ADDR").unwrap_or_else(|_| {
+            let port = env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+            format!("0.0.0.0:{}", port)
+        });
         let database_url = env::var("DATABASE_URL")
             .map_err(|_| "DATABASE_URL wajib diatur di .env".to_string())?;
 

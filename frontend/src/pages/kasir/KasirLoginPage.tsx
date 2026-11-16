@@ -1,35 +1,13 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { QrCode, KeyRound, ArrowRight, Loader2, Store, Sparkles } from 'lucide-react'
+import { QrCode, ArrowRight, Loader2, KeyRound } from 'lucide-react'
 import { api } from '../../services/api'
-
-interface TenantOption {
-  id: number
-  name: string
-  stall: string
-}
 
 export default function KasirLoginPage() {
   const navigate = useNavigate()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [tenants, setTenants] = useState<TenantOption[]>([])
-  const [selectedTenant, setSelectedTenant] = useState<string>('')
-
-  // Muat daftar stan aktif untuk pilihan cepat (mode demo)
-  useEffect(() => {
-    loadTenants()
-  }, [])
-
-  const loadTenants = async () => {
-    try {
-      const res = await api.kasir.getTenants()
-      setTenants(res.tenants || [])
-    } catch {
-      // Abaikan jika gagal
-    }
-  }
 
   // Format input: kode pairing 10 karakter dengan strip setelah 5 karakter (contoh: 7M4QX-P8RTK)
   const handleCodeChange = (val: string) => {
@@ -65,30 +43,6 @@ export default function KasirLoginPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Gagal terhubung ke server. Pastikan HP terhubung ke jaringan kampus.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // Masuk langsung dengan memilih stan (untuk testing/demo)
-  const handleSelectLogin = async (tenantId: number) => {
-    setLoading(true)
-    setError('')
-    try {
-      const res = await api.kasir.pair({ tenant_id: tenantId })
-      if (res.ok) {
-        localStorage.setItem('upitra_kasir_session', JSON.stringify({
-          authenticated: true,
-          role: 'tenant',
-          tenantId: res.tenant_id || tenantId,
-          stall: res.stall || 'Stan Kantin',
-        }))
-        navigate('/scan')
-      } else {
-        setError(res.error || 'Gagal menghubungkan ke stan tersebut')
-      }
-    } catch (err: any) {
-      setError(err.message || 'Gagal menghubungkan ke stan')
     } finally {
       setLoading(false)
     }
@@ -139,9 +93,13 @@ export default function KasirLoginPage() {
               autoFocus
               spellCheck={false}
             />
-            <p className="text-[11px] text-slate-500 mt-1.5 text-center">
-              Kode 10 karakter didapat dari tombol <strong>"Kode Pairing"</strong> di Admin IT.
-            </p>
+            <div className="mt-3 p-3 bg-sky-50/80 rounded-xl border border-sky-100 text-[11px] text-slate-600 leading-relaxed text-left">
+              <div className="flex items-center gap-1.5 font-bold text-sky-800 mb-1">
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Petunjuk Kasir:</span>
+              </div>
+              Buka menu <strong>Admin IT &gt; Stan Kantin</strong> lalu klik tombol <strong>"Kode Pairing"</strong> pada stan yang bersangkutan untuk mendapatkan 10 karakter kode aktivasi.
+            </div>
           </div>
 
           <button
@@ -162,33 +120,6 @@ export default function KasirLoginPage() {
             )}
           </button>
         </form>
-
-        {/* Pilihan Cepat Stan (Mode Demo / Pengujian) */}
-        {tenants.length > 0 && (
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider text-center mb-3">
-              atau pilih stan langsung (mode demo)
-            </div>
-            <div className="space-y-2">
-              {tenants.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => handleSelectLogin(t.id)}
-                  disabled={loading}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-200 text-slate-700 hover:text-sky-800 text-xs font-bold transition-all group"
-                >
-                  <div className="flex items-center gap-2">
-                    <Store className="w-4 h-4 text-sky-600" />
-                    <span>{t.name}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 group-hover:text-sky-600">
-                    Masuk →
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="text-center text-xs text-slate-500 pb-4 font-medium">

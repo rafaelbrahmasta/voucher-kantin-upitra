@@ -4,10 +4,78 @@ use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::{PgPool, Row};
 
 pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
-    sqlx::postgres::PgPoolOptions::new()
+    let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(20)
         .connect(database_url)
-        .await
+        .await?;
+
+    // Pastikan skema migrasi tabel & kolom pendukung sudah terpasang
+    run_auto_migrations(&pool).await?;
+
+    Ok(pool)
+}
+
+pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
+    // 0002_admin_master DDL
+    sqlx::query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS access_hash bytea;").execute(pool).await?;
+    sqlx::query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS session_version integer NOT NULL DEFAULT 1;").execute(pool).await?;
+    sqlx::query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();").execute(pool).await?;
+    sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS tenants_access_hash_uq ON tenants (access_hash) WHERE access_hash IS NOT NULL;").execute(pool).await?;
+
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS menu_items (
+            id           bigserial PRIMARY KEY,
+            tenant_id    bigint      NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+            name         text        NOT NULL CHECK (length(name) BETWEEN 1 AND 80),
+            price        integer     NOT NULL CHECK (price >= 0),
+            is_available boolean     NOT NULL DEFAULT true,
+            sort_order   integer     NOT NULL DEFAULT 0,
+            created_at   timestamptz NOT NULL DEFAULT now(),
+            updated_at   timestamptz NOT NULL DEFAULT now()
+        );
+    "#).execute(pool).await?;
+
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS menu_items_tenant_idx ON menu_items (tenant_id, sort_order, name);").execute(pool).await;
+
+    sqlx::query(r#"
+        CREATE TABLE IF NOT EXISTS voucher_items (
+            id           bigserial PRIMARY KEY,
+            voucher_id   bigint  NOT NULL REFERENCES vouchers(id) ON DELETE CASCADE,
+            menu_item_id bigint  REFERENCES menu_items(id) ON DELETE SET NULL,
+            name         text    NOT NULL,
+            price        integer NOT NULL CHECK (price >= 0),
+            qty          integer NOT NULL CHECK (qty BETWEEN 1 AND 20)
+        );
+    "#).execute(pool).await?;
+
+    let _ = sqlx::query("CREATE INDEX IF NOT EXISTS voucher_items_voucher_idx ON voucher_items (voucher_id);").execute(pool).await;
+
+    // 0003_admin_login DDL (Constraint users fleksibel & akun admin awal)
+    let _ = sqlx::query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_check;").execute(pool).await;
+    let _ = sqlx::query(r#"
+        ALTER TABLE users ADD CONSTRAINT users_check CHECK (
+          (role = 'tenant'
+             AND tenant_id     IS NOT NULL
+             AND username      IS NOT NULL
+             AND password_hash IS NOT NULL
+             AND microsoft_oid IS NULL)
+          OR
+          (role <> 'tenant'
+             AND tenant_id IS NULL
+             AND (password_hash IS NOT NULL OR microsoft_oid IS NOT NULL))
+        );
+    "#).execute(pool).await;
+
+    // Tambah akun default Admin Super IT & Biro Keuangan jika belum ada
+    sqlx::query(r#"
+        INSERT INTO users (role, username, password_hash, display_name)
+        VALUES
+          ('admin',   'admin.it',      'plain:Admin@IT2025', 'Admin Super IT'),
+          ('finance', 'admin.finance', 'plain:Finance@2025',  'Admin Biro Keuangan')
+        ON CONFLICT (username) DO NOTHING;
+    "#).execute(pool).await?;
+
+    Ok(())
 }
 
 // ── Staff Queries ─────────────────────────────────────────────────
@@ -344,6 +412,7 @@ pub async fn scan_by_token_hash(
     token_hash: &[u8],
     tenant_id: i64,
     user_id: i64,
+    items: Option<&[OrderLineIn]>,
 ) -> Result<ScanResult, sqlx::Error> {
     // 1. UPDATE atomik jika status masih 'issued' dan dalam rentang jam berlaku
     let upd_sql = r#"
@@ -368,7 +437,14 @@ pub async fn scan_by_token_hash(
         .fetch_optional(pool)
         .await?
     {
+        let voucher_id: i64 = row.get("id");
         let used_at: DateTime<Utc> = row.get("used_at");
+        let order = if let Some(it) = items {
+            record_order_items(pool, voucher_id, tenant_id, it).await
+        } else {
+            None
+        };
+
         return Ok(ScanResult {
             result: "ok".to_string(),
             staff: Some(row.get("staff")),
@@ -378,7 +454,7 @@ pub async fn scan_by_token_hash(
             used_at: Some(used_at.to_rfc3339()),
             tenant: None,
             message: None,
-            order: None,
+            order,
         });
     }
 
@@ -392,6 +468,7 @@ pub async fn scan_by_short_code(
     voucher_date: NaiveDate,
     tenant_id: i64,
     user_id: i64,
+    items: Option<&[OrderLineIn]>,
 ) -> Result<ScanResult, sqlx::Error> {
     let upd_sql = r#"
         WITH u AS (
@@ -417,7 +494,14 @@ pub async fn scan_by_short_code(
         .fetch_optional(pool)
         .await?
     {
+        let voucher_id: i64 = row.get("id");
         let used_at: DateTime<Utc> = row.get("used_at");
+        let order = if let Some(it) = items {
+            record_order_items(pool, voucher_id, tenant_id, it).await
+        } else {
+            None
+        };
+
         return Ok(ScanResult {
             result: "ok".to_string(),
             staff: Some(row.get("staff")),
@@ -427,7 +511,7 @@ pub async fn scan_by_short_code(
             used_at: Some(used_at.to_rfc3339()),
             tenant: None,
             message: None,
-            order: None,
+            order,
         });
     }
 
@@ -502,6 +586,118 @@ async fn diagnose_voucher(pool: &PgPool, where_clause: &str, hash: &[u8]) -> Res
             order: None,
         }),
     }
+}
+
+// ── Item Pesanan Menu Kantin (Voucher Items) ───────────────────────
+
+pub async fn record_order_items(
+    pool: &PgPool,
+    voucher_id: i64,
+    tenant_id: i64,
+    items: &[OrderLineIn],
+) -> Option<OrderOut> {
+    if items.is_empty() {
+        return None;
+    }
+
+    let mut out_items = Vec::new();
+    let mut total = 0;
+
+    for item in items {
+        if item.qty <= 0 {
+            continue;
+        }
+        let sql = "SELECT name, price FROM menu_items WHERE id = $1 AND tenant_id = $2";
+        if let Ok(Some(row)) = sqlx::query(sql).bind(item.id).bind(tenant_id).fetch_optional(pool).await {
+            let name: String = row.get("name");
+            let price: i32 = row.get("price");
+            let subtotal = price * item.qty;
+            total += subtotal;
+
+            let ins_sql = r#"
+                INSERT INTO voucher_items (voucher_id, menu_item_id, name, price, qty)
+                VALUES ($1, $2, $3, $4, $5)
+            "#;
+            let _ = sqlx::query(ins_sql)
+                .bind(voucher_id)
+                .bind(item.id)
+                .bind(&name)
+                .bind(price)
+                .bind(item.qty)
+                .execute(pool)
+                .await;
+
+            out_items.push(OrderLineOut {
+                name,
+                qty: item.qty,
+                price,
+                subtotal,
+            });
+        }
+    }
+
+    if out_items.is_empty() {
+        return None;
+    }
+
+    let pay = if total > 5000 { total - 5000 } else { 0 };
+    Some(OrderOut {
+        items: out_items,
+        total,
+        pay,
+    })
+}
+
+// ── Verifikasi Login Pengguna (Auth) ──────────────────────────────
+
+pub async fn verify_user_login(
+    pool: &PgPool,
+    role: &str,
+    identifier: &str,
+    password: &str,
+) -> Result<User, String> {
+    let id_clean = identifier.trim();
+    if password.trim().is_empty() {
+        return Err("Password wajib diisi".to_string());
+    }
+
+    let sql = r#"
+        SELECT id, role::text AS role, username, password_hash, display_name, is_active
+        FROM users
+        WHERE role::text = $1
+          AND (LOWER(username) = LOWER($2) OR LOWER(display_name) = LOWER($2) OR $2 = '')
+          AND is_active = true
+        LIMIT 1
+    "#;
+
+    let user: Option<User> = sqlx::query_as::<_, User>(sql)
+        .bind(role)
+        .bind(id_clean)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| format!("Database error: {}", e))?;
+
+    let u = match user {
+        Some(u) => u,
+        None => return Err("Pengguna tidak ditemukan atau akun dinonaktifkan".to_string()),
+    };
+
+    let hash = u.password_hash.as_deref().unwrap_or("");
+    let is_valid = if let Some(plain) = hash.strip_prefix("plain:") {
+        plain == password
+    } else if hash.starts_with("$argon2") {
+        hash == password
+    } else if !hash.is_empty() {
+        hash == password
+    } else {
+        false
+    };
+
+    if !is_valid {
+        return Err("Password atau kredensial yang Anda masukkan salah".to_string());
+    }
+
+    Ok(u)
 }
 
 // ── Laporan Hari Ini (Kasir) ──────────────────────────────────────

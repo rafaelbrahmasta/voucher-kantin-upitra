@@ -62,6 +62,19 @@ export const api = {
       request<{ ok: boolean }>(`/admin/staff/${id}/toggle`, { method: 'POST' }),
     deleteStaff: (id: number) =>
       request<{ ok: boolean }>(`/admin/staff/${id}`, { method: 'DELETE' }),
+    issueVouchers: (date?: string, force?: boolean) =>
+      request<{
+        date: string
+        total_staff: number
+        issued_count: number
+        skipped_count: number
+        skipped_holiday_or_weekend: boolean
+        message: string
+        details: string[]
+      }>('/admin/issue-vouchers', {
+        method: 'POST',
+        body: JSON.stringify({ date, force }),
+      }),
 
     // Tenants
     getTenants: () => request<{ tenants: Tenant[] }>('/admin/tenants'),

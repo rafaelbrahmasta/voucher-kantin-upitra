@@ -64,9 +64,10 @@ pub fn hash_token(tok: &str) -> Vec<u8> {
 pub fn generate_short_code() -> String {
     let mut bytes = [0u8; CODE_LEN];
     rand::thread_rng().fill_bytes(&mut bytes);
+    let crock = CROCKFORD.as_bytes();
     let chars: String = bytes
         .iter()
-        .map(|&b| CROCKFORD.chars().nth((b & 31) as usize).unwrap())
+        .map(|&b| crock[(b & 31) as usize] as char)
         .collect();
     format!("{}-{}", &chars[..4], &chars[4..])
 }
@@ -99,15 +100,15 @@ pub fn short_code_hash(key: &[u8], date: &str, code: &str) -> Vec<u8> {
 // ── Kode Pairing Stan Kasir (10 Karakter) ─────────────────────────
 
 pub fn generate_pairing_code() -> String {
-    let mut bytes = [0u8; PAIRING_LEN];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    bytes
-        .iter()
-        .map(|&b| {
-            let idx = (b as usize) % PAIRING_ALPHABET.len();
-            PAIRING_ALPHABET.chars().nth(idx).unwrap()
-        })
-        .collect()
+    use rand::Rng;
+    let mut rng = rand::thread_rng();
+    let chars = PAIRING_ALPHABET.as_bytes();
+    let mut res = String::with_capacity(PAIRING_LEN);
+    for _ in 0..PAIRING_LEN {
+        let idx = rng.gen_range(0..chars.len());
+        res.push(chars[idx] as char);
+    }
+    res
 }
 
 pub fn normalize_pairing_code(input: &str) -> Option<String> {

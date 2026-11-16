@@ -11,6 +11,8 @@ import {
   Calendar,
   RefreshCw,
   ArrowUpRight,
+  Send,
+  Loader2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
@@ -19,6 +21,8 @@ import { AdminSummaryData } from '../../types'
 export default function AdminDashboard() {
   const [data, setData] = useState<AdminSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [issuing, setIssuing] = useState(false)
+  const [issueResult, setIssueResult] = useState<{ message: string; details: string[] } | null>(null)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
 
   useEffect(() => {
@@ -34,6 +38,20 @@ export default function AdminDashboard() {
       console.error('Failed to load summary', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleIssueVouchers = async () => {
+    if (!window.confirm(`Terbitkan jatah voucher kantin untuk tanggal ${date}?`)) return
+    try {
+      setIssuing(true)
+      const res = await api.admin.issueVouchers(date, false)
+      setIssueResult({ message: res.message, details: res.details })
+      loadSummary(date)
+    } catch (err: any) {
+      alert(err.message || 'Gagal menerbitkan voucher')
+    } finally {
+      setIssuing(false)
     }
   }
 
@@ -55,8 +73,8 @@ export default function AdminDashboard() {
           </p>
         </div>
 
-        {/* Date Selector & Refresh */}
-        <div className="flex items-center gap-2">
+        {/* Date Selector & Refresh & Issue */}
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-2 rounded-xl shadow-xs">
             <Calendar className="w-4 h-4 text-sky-600" />
             <input
@@ -69,8 +87,26 @@ export default function AdminDashboard() {
           <button
             onClick={() => loadSummary(date)}
             className="p-2.5 bg-white hover:bg-sky-50 text-slate-600 hover:text-sky-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
+            title="Muat Ulang Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleIssueVouchers}
+            disabled={issuing}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all disabled:opacity-50"
+          >
+            {issuing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Menerbitkan...</span>
+              </>
+            ) : (
+              <>
+                <Send className="w-3.5 h-3.5" />
+                <span>Terbitkan Voucher</span>
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -256,6 +292,42 @@ export default function AdminDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Modal Laporan Penerbitan Voucher */}
+      {issueResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-sky-200 overflow-hidden">
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 mb-4 mx-auto">
+                <Ticket className="w-6 h-6" />
+              </div>
+
+              <h3 className="text-base font-bold text-slate-900 text-center mb-1">
+                Hasil Penerbitan Voucher
+              </h3>
+              <p className="text-xs text-slate-600 text-center mb-4 leading-relaxed font-medium">
+                {issueResult.message}
+              </p>
+
+              <div className="max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1 mb-5 font-mono text-slate-700">
+                {issueResult.details.map((d, i) => (
+                  <div key={i} className="py-0.5 border-b border-slate-200/50 last:border-0">
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIssueResult(null)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-sm"
+              >
+                Tutup & Perbarui Ringkasan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
