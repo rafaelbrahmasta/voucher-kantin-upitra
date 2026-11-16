@@ -161,18 +161,34 @@ export const api = {
   // Kasir / Tenant (pakai cookie sesi kasir)
   kasir: {
     me: () => request<AuthSession>('/api/auth/me'),
-    scan: (qr: string, items: Array<{ id: number; qty: number }>) =>
+    scan: (qr: string, items?: Array<{ id: number; qty: number }>) =>
       request<ScanResult>('/api/scan', {
         method: 'POST',
-        body: JSON.stringify({ qr, items }),
+        body: JSON.stringify({ qr, items: items || [] }),
       }),
-    scanCode: (code: string, items: Array<{ id: number; qty: number }>) =>
+    scanCode: (code: string, items?: Array<{ id: number; qty: number }>) =>
       request<ScanResult>('/api/scan/code', {
         method: 'POST',
-        body: JSON.stringify({ code, items }),
+        body: JSON.stringify({ code, items: items || [] }),
       }),
+    scanVoucher: (payload: string, items?: Array<{ id: number; qty: number }>) => {
+      // Jika format kode pendek 8-9 karakter (xxxx-xxxx atau xxxxxxxx), gunakan endpoint kode
+      const clean = payload.trim().replace('-', '')
+      if (clean.length === 8 && /^[a-zA-Z0-9]+$/.test(clean)) {
+        return request<ScanResult>('/api/scan/code', {
+          method: 'POST',
+          body: JSON.stringify({ code: payload.trim(), items: items || [] }),
+        })
+      }
+      return request<ScanResult>('/api/scan', {
+        method: 'POST',
+        body: JSON.stringify({ qr: payload.trim(), items: items || [] }),
+      })
+    },
     today: () => request<TodayData>('/api/today'),
+    getToday: () => request<TodayData>('/api/today'),
     menu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
+    getMenu: () => request<{ items: MenuItemScan[] }>('/api/menu'),
     logout: () => request<{ ok: boolean }>('/keluar', { method: 'POST' }),
   },
 }

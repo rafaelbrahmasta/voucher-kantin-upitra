@@ -147,13 +147,9 @@ func (s *Server) Handler() http.Handler {
 	// tenant memakai DEV_TENANT_ID. Portal Admin IT dan Finance dilindungi login masing-masing.
 	if s.cfg.Env == "dev" {
 		s.log.Warn("mode dev: halaman tenant aktif; admin dan finance dilindungi login")
-		r.Get("/", s.handleHome)
-		r.Get("/masuk", s.handleLoginPage)
 		r.Post("/masuk", s.handleLogin)
 		r.Post("/masuk/pilih", s.handleLoginSelect)
 		r.Post("/keluar", s.handleLogout)
-		r.Get("/scan", s.handleScanPage)
-		r.Get("/today", s.handleToday)
 		r.Get("/api/today", s.handleAPIToday)
 		r.Get("/api/menu", s.handleAPIMenu)
 		r.Post("/api/scan", s.handleScan)

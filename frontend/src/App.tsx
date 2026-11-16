@@ -22,33 +22,37 @@ import KasirLoginPage from './pages/kasir/KasirLoginPage'
 
 function HomePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 text-white flex flex-col justify-between font-sans">
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-sky-100/60 text-slate-800 flex flex-col justify-between font-sans">
       {/* Header */}
-      <header className="border-b border-white/10 backdrop-blur-md bg-white/5 px-6 py-4">
+      <header className="border-b border-sky-100 backdrop-blur-md bg-white/80 px-6 py-4 shadow-sm sticky top-0 z-30">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <span className="font-extrabold text-white text-lg">UP</span>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-md shadow-sky-500/20">
+              <span className="font-black text-white text-lg">UP</span>
             </div>
             <div>
-              <h1 className="font-bold text-base leading-tight">Voucher Kantin UPITRA</h1>
-              <p className="text-xs text-blue-200/70">Universitas Pignatelli Triputra</p>
+              <h1 className="font-extrabold text-slate-900 text-base leading-tight">Voucher Kantin UPITRA</h1>
+              <p className="text-xs text-sky-700 font-medium">Universitas Pignatelli Triputra</p>
             </div>
           </div>
-          <span className="text-xs bg-blue-500/20 text-blue-300 border border-blue-400/30 px-3 py-1 rounded-full font-medium">
-            React v18 SPA
+          <span className="text-xs bg-sky-100 text-sky-800 border border-sky-200 px-3 py-1 rounded-full font-semibold">
+            Portal Kampus
           </span>
         </div>
       </header>
 
       {/* Main Hero */}
-      <main className="max-w-5xl mx-auto px-6 py-12 flex-1 flex flex-col justify-center">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight mb-4 bg-clip-text text-transparent bg-gradient-to-r from-blue-200 via-white to-blue-300">
+      <main className="max-w-5xl mx-auto px-6 py-14 flex-1 flex flex-col justify-center">
+        <div className="text-center max-w-2xl mx-auto mb-14">
+          <div className="inline-flex items-center gap-2 bg-sky-100/80 border border-sky-200 px-3.5 py-1.5 rounded-full text-xs font-bold text-sky-800 mb-4 shadow-xs">
+            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
+            Sistem Digitalisasi Voucher Kampus
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4 text-slate-900">
             Sistem Digital Voucher Kantin Kampus
           </h2>
-          <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
-            Portal terintegrasi untuk kasir stan kantin, manajemen data dosen & staf, serta audit keuangan subsidi kampus.
+          <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+            Portal terpadu untuk kasir stan kantin, manajemen data penerima voucher dosen & staf, serta audit realisasi anggaran subsidi kampus.
           </p>
         </div>
 
@@ -57,20 +61,20 @@ function HomePage() {
           {/* Card 1: Kasir */}
           <Link
             to="/scan"
-            className="group relative rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-lg hover:bg-white/10 hover:border-emerald-500/50 transition-all duration-300 shadow-xl flex flex-col justify-between"
+            className="group relative rounded-2xl bg-white border border-sky-100 p-7 hover:border-emerald-400 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-sm flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                 <QrCode className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-lg mb-1 text-white group-hover:text-emerald-300 transition-colors">
+              <h3 className="font-bold text-lg mb-1.5 text-slate-900 group-hover:text-emerald-600 transition-colors">
                 Kasir Stan Kantin
               </h3>
-              <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                Scan QR voucher dosen/staf via kamera HP dan klaim pesanan menu makan/minum.
+              <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                Scan QR voucher dosen/staf via kamera HP dan klaim pesanan menu makan/minum mitra kantin.
               </p>
             </div>
-            <div className="flex items-center text-xs font-semibold text-emerald-400 gap-1 group-hover:translate-x-1 transition-transform">
+            <div className="flex items-center text-xs font-bold text-emerald-600 gap-1.5 group-hover:translate-x-1 transition-transform">
               Buka Scanner <ArrowRight className="w-4 h-4" />
             </div>
           </Link>
@@ -78,20 +82,20 @@ function HomePage() {
           {/* Card 2: Admin Super IT */}
           <Link
             to="/admin"
-            className="group relative rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-lg hover:bg-white/10 hover:border-blue-500/50 transition-all duration-300 shadow-xl flex flex-col justify-between"
+            className="group relative rounded-2xl bg-white border border-sky-200 p-7 hover:border-sky-500 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-sm flex flex-col justify-between ring-2 ring-sky-500/10"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-blue-500/20 border border-blue-400/30 text-blue-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                 <Shield className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-lg mb-1 text-white group-hover:text-blue-300 transition-colors">
+              <h3 className="font-bold text-lg mb-1.5 text-slate-900 group-hover:text-sky-600 transition-colors">
                 Admin Super IT
               </h3>
-              <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                Kelola master data dosen & staf, penerbitan kuota voucher harian, dan stan kantin.
+              <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                Kelola master data dosen & staf, penerbitan kuota voucher harian, dan stan kantin mitra.
               </p>
             </div>
-            <div className="flex items-center text-xs font-semibold text-blue-400 gap-1 group-hover:translate-x-1 transition-transform">
+            <div className="flex items-center text-xs font-bold text-sky-600 gap-1.5 group-hover:translate-x-1 transition-transform">
               Masuk Portal IT <ArrowRight className="w-4 h-4" />
             </div>
           </Link>
@@ -99,20 +103,20 @@ function HomePage() {
           {/* Card 3: Biro Keuangan */}
           <Link
             to="/finance"
-            className="group relative rounded-2xl bg-white/5 border border-white/10 p-6 backdrop-blur-lg hover:bg-white/10 hover:border-amber-500/50 transition-all duration-300 shadow-xl flex flex-col justify-between"
+            className="group relative rounded-2xl bg-white border border-sky-100 p-7 hover:border-amber-400 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 shadow-sm flex flex-col justify-between"
           >
             <div>
-              <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
                 <Coins className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-lg mb-1 text-white group-hover:text-amber-300 transition-colors">
+              <h3 className="font-bold text-lg mb-1.5 text-slate-900 group-hover:text-amber-600 transition-colors">
                 Biro Keuangan
               </h3>
-              <p className="text-xs text-slate-300 leading-relaxed mb-4">
-                Audit realisasi subsidi voucher, grafik anggaran, dan validasi pencairan dana kasir.
+              <p className="text-xs text-slate-500 leading-relaxed mb-6">
+                Audit realisasi subsidi voucher, grafik anggaran, dan validasi pencairan dana kasir stan.
               </p>
             </div>
-            <div className="flex items-center text-xs font-semibold text-amber-400 gap-1 group-hover:translate-x-1 transition-transform">
+            <div className="flex items-center text-xs font-bold text-amber-600 gap-1.5 group-hover:translate-x-1 transition-transform">
               Buka Keuangan <ArrowRight className="w-4 h-4" />
             </div>
           </Link>
@@ -120,8 +124,8 @@ function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-white/10 px-6 py-4 text-center text-xs text-slate-400">
-        © 2026 Universitas Pignatelli Triputra · Proyek Magang Sistem Voucher Kantin Digital
+      <footer className="border-t border-sky-100 bg-white/70 backdrop-blur-sm px-6 py-4 text-center text-xs text-slate-500">
+        © 2026 Universitas Pignatelli Triputra · Sistem Voucher Kantin Digital
       </footer>
     </div>
   )

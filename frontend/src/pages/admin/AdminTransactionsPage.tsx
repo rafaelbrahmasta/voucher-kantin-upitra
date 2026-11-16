@@ -68,51 +68,51 @@ export default function AdminTransactionsPage() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <ReceiptText className="w-6 h-6 text-blue-400" />
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <ReceiptText className="w-6 h-6 text-sky-600" />
             Audit Transaksi Voucher
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Riwayat lengkap penukaran voucher makan dosen & staf di seluruh stan kantin kampus.
+          <p className="text-xs text-slate-500 mt-1">
+            Riwayat lengkap penukaran voucher makan dosen & staf di seluruh stan kantin UPITRA.
           </p>
         </div>
 
         <button
           onClick={() => loadTransactions(page)}
-          className="self-start sm:self-auto p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-white/10 transition-colors"
+          className="self-start sm:self-auto p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
 
       {/* Filter Control Box */}
-      <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-4 backdrop-blur-sm grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
         <div>
-          <label className="block text-slate-400 font-semibold mb-1">Dari Tanggal</label>
+          <label className="block text-slate-500 font-bold mb-1">Dari Tanggal</label>
           <input
             type="date"
             value={dari}
             onChange={(e) => setDari(e.target.value)}
-            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500"
           />
         </div>
 
         <div>
-          <label className="block text-slate-400 font-semibold mb-1">Sampai Tanggal</label>
+          <label className="block text-slate-500 font-bold mb-1">Sampai Tanggal</label>
           <input
             type="date"
             value={sampai}
             onChange={(e) => setSampai(e.target.value)}
-            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500"
           />
         </div>
 
         <div>
-          <label className="block text-slate-400 font-semibold mb-1">Stan Kantin</label>
+          <label className="block text-slate-500 font-bold mb-1">Stan Kantin</label>
           <select
             value={selectedTenant}
             onChange={(e) => setSelectedTenant(Number(e.target.value))}
-            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500"
           >
             <option value={0}>Semua Stan Kantin</option>
             {tenants.map((t) => (
@@ -124,11 +124,11 @@ export default function AdminTransactionsPage() {
         </div>
 
         <div>
-          <label className="block text-slate-400 font-semibold mb-1">Unit / Fakultas</label>
+          <label className="block text-slate-500 font-bold mb-1">Unit / Fakultas</label>
           <select
             value={selectedUnit}
             onChange={(e) => setSelectedUnit(e.target.value)}
-            className="w-full bg-slate-800 border border-white/10 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500"
           >
             <option value="">Semua Unit / Fakultas</option>
             {units.map((u) => (
@@ -141,11 +141,11 @@ export default function AdminTransactionsPage() {
       </div>
 
       {/* Transactions Table */}
-      <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm shadow-xl">
+      <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-800/80 border-b border-white/10 text-slate-300 font-semibold uppercase tracking-wider text-[11px]">
+              <tr className="bg-sky-50/70 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3.5 px-4">Waktu</th>
                 <th className="py-3.5 px-4">Penerima (Dosen / Staf)</th>
                 <th className="py-3.5 px-4">Stan Kantin</th>
@@ -153,60 +153,60 @@ export default function AdminTransactionsPage() {
                 <th className="py-3.5 px-4 text-right">Nominal Voucher</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400">
-                    <div className="inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <div className="inline-block w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p>Memuat riwayat transaksi...</p>
                   </td>
                 </tr>
               ) : transactions.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400">
-                    <ReceiptText className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                    <p className="font-medium text-slate-300">Tidak ada transaksi ditemukan pada rentang ini.</p>
+                    <ReceiptText className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-700">Tidak ada transaksi ditemukan pada rentang ini.</p>
                   </td>
                 </tr>
               ) : (
                 transactions.map((tx, idx) => (
-                  <tr key={idx} className="hover:bg-white/[0.02] transition-colors">
+                  <tr key={idx} className="hover:bg-sky-50/30 transition-colors">
                     {/* Time */}
-                    <td className="py-3.5 px-4 font-mono text-slate-300">
+                    <td className="py-3.5 px-4 font-mono text-slate-600">
                       <div>{new Date(tx.At).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-[10px] text-slate-400">
                         {new Date(tx.At).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
                       </div>
                     </td>
 
                     {/* Staff */}
                     <td className="py-3.5 px-4">
-                      <div className="font-bold text-white">{tx.Staff}</div>
-                      <div className="text-[11px] text-slate-400">{tx.Unit}</div>
+                      <div className="font-bold text-slate-900">{tx.Staff}</div>
+                      <div className="text-[11px] text-slate-500">{tx.Unit}</div>
                     </td>
 
                     {/* Tenant */}
-                    <td className="py-3.5 px-4 text-slate-300">
-                      <span className="font-semibold text-slate-200">{tx.Tenant}</span>
+                    <td className="py-3.5 px-4 text-slate-700">
+                      <span className="font-bold text-sky-700">{tx.Tenant}</span>
                     </td>
 
                     {/* Items */}
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-3.5 px-4 text-slate-600">
                       {tx.Items ? (
-                        <span className="text-slate-300">{tx.Items}</span>
+                        <span>{tx.Items}</span>
                       ) : (
-                        <span className="italic text-slate-500">Klaim voucher makan harian</span>
+                        <span className="italic text-slate-400">Klaim voucher makan harian</span>
                       )}
                     </td>
 
                     {/* Amount */}
                     <td className="py-3.5 px-4 text-right">
                       {tx.Voided ? (
-                        <span className="text-rose-400 line-through font-mono">
+                        <span className="text-rose-500 line-through font-mono">
                           {formatRupiah(tx.Amount)} (Batal)
                         </span>
                       ) : (
-                        <span className="font-mono text-emerald-400 font-bold text-sm">
+                        <span className="font-mono text-emerald-600 font-bold text-sm">
                           {formatRupiah(tx.Amount)}
                         </span>
                       )}
@@ -220,25 +220,25 @@ export default function AdminTransactionsPage() {
 
         {/* Pagination Bar */}
         {pages > 1 && (
-          <div className="px-6 py-3.5 bg-slate-800/40 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+          <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
             <span>
-              Menampilkan total <strong className="text-white">{total}</strong> transaksi
+              Menampilkan total <strong className="text-slate-800">{total}</strong> transaksi
             </span>
             <div className="flex items-center gap-2">
               <button
                 disabled={page <= 1}
                 onClick={() => loadTransactions(page - 1)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 text-white"
+                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-30 text-slate-700"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <span className="font-medium text-slate-300">
+              <span className="font-semibold text-slate-700">
                 Halaman {page} dari {pages}
               </span>
               <button
                 disabled={page >= pages}
                 onClick={() => loadTransactions(page + 1)}
-                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-slate-800 text-white"
+                className="p-1.5 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 disabled:opacity-30 text-slate-700"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

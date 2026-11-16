@@ -81,6 +81,7 @@ export interface ScanResult {
   at?: string
   usedAt?: string
   voucherId?: number
+  message?: string
   order?: {
     items: Array<{ name: string; qty: number; price: number; subtotal: number }>
     total: number

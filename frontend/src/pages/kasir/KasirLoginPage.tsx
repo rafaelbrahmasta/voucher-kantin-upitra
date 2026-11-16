@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { QrCode, KeyRound, ArrowRight, Loader2 } from 'lucide-react'
 
 export default function KasirLoginPage() {
@@ -34,8 +34,6 @@ export default function KasirLoginPage() {
         body: JSON.stringify({ code }),
       })
       const data = await res.json()
-      // Pairing berhasil jika result bukan 'invalid' (atau jika ada field stall)
-      // Server set cookie sesi kasir, kita redirect ke scanner
       if (res.ok && data.result !== 'invalid') {
         navigate('/scan')
       } else {
@@ -49,32 +47,31 @@ export default function KasirLoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 flex flex-col items-center justify-center p-4 font-sans">
-      {/* Logo */}
-      <div className="mb-8 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center mx-auto mb-4">
-          <QrCode className="w-8 h-8 text-emerald-400" />
-        </div>
-        <h1 className="text-xl font-bold text-white">Kasir Stan Kantin</h1>
-        <p className="text-sm text-emerald-200/60 mt-1">Voucher Kantin UPITRA</p>
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-sky-100/70 flex flex-col justify-between p-4 font-sans text-slate-800">
+      {/* Top Bar */}
+      <div className="max-w-md w-full mx-auto pt-6 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2 text-xs font-semibold text-sky-700 hover:text-sky-900 transition-colors">
+          ← Beranda UPITRA
+        </Link>
+        <span className="text-[11px] bg-sky-100 text-sky-800 border border-sky-200 px-2.5 py-0.5 rounded-full font-bold">
+          Portal Kasir Kantin
+        </span>
       </div>
 
-      {/* Card */}
-      <div className="w-full max-w-sm bg-white/5 border border-white/10 backdrop-blur-xl rounded-2xl p-6 shadow-2xl">
-        <div className="flex items-center gap-2 mb-5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-            <KeyRound className="w-4 h-4 text-emerald-400" />
+      {/* Main Card */}
+      <div className="w-full max-w-sm mx-auto my-auto bg-white border border-sky-100 rounded-3xl p-7 shadow-xl shadow-sky-900/5">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-500/25">
+            <QrCode className="w-8 h-8 text-white" />
           </div>
-          <div>
-            <h2 className="text-sm font-bold text-white">Hubungkan Perangkat</h2>
-            <p className="text-xs text-slate-400">Masukkan kode pairing dari Admin IT</p>
-          </div>
+          <h1 className="text-xl font-black text-slate-900">Hubungkan Kasir Stan</h1>
+          <p className="text-xs text-slate-500 mt-1">Sistem Voucher Kantin UPITRA</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-2">
-              Kode Pairing (8 karakter)
+            <label className="block text-xs font-bold text-slate-700 mb-2">
+              Masukkan Kode Pairing dari Admin IT
             </label>
             <input
               type="text"
@@ -82,7 +79,7 @@ export default function KasirLoginPage() {
               onChange={(e) => handleCodeChange(e.target.value)}
               placeholder="xxxx-xxxx"
               maxLength={9}
-              className="w-full bg-slate-800/80 border border-white/10 text-white text-center text-xl font-mono tracking-widest rounded-xl px-4 py-3.5 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-400/50 placeholder:text-slate-600 uppercase"
+              className="w-full bg-slate-50 border border-slate-300 text-slate-900 text-center text-xl font-mono tracking-widest rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 placeholder:text-slate-400 uppercase font-bold"
               autoComplete="off"
               autoFocus
               spellCheck={false}
@@ -90,7 +87,7 @@ export default function KasirLoginPage() {
           </div>
 
           {error && (
-            <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl px-4 py-3 text-xs text-rose-300">
+            <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-3 text-xs text-rose-700 font-medium">
               {error}
             </div>
           )}
@@ -98,26 +95,30 @@ export default function KasirLoginPage() {
           <button
             type="submit"
             disabled={loading || code.replace('-', '').length !== 8}
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded-xl px-4 py-3 transition-all"
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/25 transition-all disabled:opacity-40"
           >
             {loading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Memverifikasi Kode...</span>
+              </>
             ) : (
-              <ArrowRight className="w-4 h-4" />
+              <>
+                <span>Aktifkan Scanner</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
             )}
-            {loading ? 'Menghubungkan...' : 'Hubungkan & Buka Scanner'}
           </button>
         </form>
 
-        <div className="mt-5 pt-4 border-t border-white/5 text-center">
-          <p className="text-xs text-slate-500">
-            Kode pairing dibuat oleh Admin Super IT di portal manajemen stan kantin.<br />
-            Satu kode hanya berlaku untuk satu perangkat.
-          </p>
+        <div className="mt-6 pt-5 border-t border-slate-100 text-center text-[11px] text-slate-400">
+          Kode pairing 8 digit didapatkan melalui dashboard Admin IT pada menu Kelola Stan Kantin.
         </div>
       </div>
 
-      <p className="mt-6 text-xs text-slate-600">© 2026 Universitas Pignatelli Triputra</p>
+      <div className="text-center text-xs text-slate-500 pb-4 font-medium">
+        © 2026 Universitas Pignatelli Triputra
+      </div>
     </div>
   )
 }

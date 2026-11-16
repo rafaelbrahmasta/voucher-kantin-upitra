@@ -21,42 +21,42 @@ function ResultCard({
 }) {
   const isOk = result.result === 'ok'
   const configs: Record<string, { icon: React.ReactNode; color: string; bg: string; label: string; desc: string }> = {
-    ok:      { icon: <CheckCircle2 className="w-10 h-10" />, color: 'text-emerald-400', bg: 'border-emerald-400/40 bg-emerald-500/10', label: 'Voucher Diterima!', desc: `Rp${(result.amount ?? 0).toLocaleString('id')} berhasil diklaim` },
-    invalid: { icon: <XCircle className="w-10 h-10" />,      color: 'text-rose-400',    bg: 'border-rose-400/40 bg-rose-500/10',       label: 'QR Tidak Valid',   desc: 'Kode voucher tidak dikenali atau rusak' },
-    used:    { icon: <AlertCircle className="w-10 h-10" />,   color: 'text-amber-400',   bg: 'border-amber-400/40 bg-amber-500/10',     label: 'Sudah Digunakan',  desc: 'Voucher ini sudah diklaim sebelumnya' },
-    expired: { icon: <Clock className="w-10 h-10" />,         color: 'text-slate-400',   bg: 'border-slate-400/40 bg-slate-500/10',     label: 'Kedaluwarsa',      desc: 'Voucher hari ini sudah tidak berlaku' },
-    void:    { icon: <XCircle className="w-10 h-10" />,       color: 'text-rose-400',    bg: 'border-rose-400/40 bg-rose-500/10',       label: 'Dibatalkan',       desc: 'Voucher ini sudah dibatalkan' },
+    ok:      { icon: <CheckCircle2 className="w-10 h-10" />, color: 'text-emerald-600', bg: 'border-emerald-200 bg-emerald-50/80', label: 'Voucher Diterima!', desc: `Rp${(result.amount ?? 0).toLocaleString('id')} berhasil diklaim` },
+    invalid: { icon: <XCircle className="w-10 h-10" />,      color: 'text-rose-600',    bg: 'border-rose-200 bg-rose-50/80',       label: 'QR Tidak Valid',   desc: 'Kode voucher tidak dikenali atau rusak' },
+    used:    { icon: <AlertCircle className="w-10 h-10" />,   color: 'text-amber-600',   bg: 'border-amber-200 bg-amber-50/80',     label: 'Sudah Digunakan',  desc: 'Voucher ini sudah diklaim sebelumnya' },
+    expired: { icon: <Clock className="w-10 h-10" />,         color: 'text-slate-600',   bg: 'border-slate-200 bg-slate-50',     label: 'Kedaluwarsa',      desc: 'Voucher hari ini sudah tidak berlaku' },
+    void:    { icon: <XCircle className="w-10 h-10" />,       color: 'text-rose-600',    bg: 'border-rose-200 bg-rose-50/80',       label: 'Dibatalkan',       desc: 'Voucher ini sudah dibatalkan' },
   }
   const cfg = configs[result.result] ?? configs.invalid
 
   return (
-    <div className={`rounded-2xl border p-6 ${cfg.bg} flex flex-col gap-4`}>
+    <div className={`rounded-2xl border p-6 ${cfg.bg} flex flex-col gap-4 shadow-sm`}>
       {/* Status */}
       <div className="flex items-center gap-4">
         <div className={cfg.color}>{cfg.icon}</div>
         <div>
           <div className={`text-lg font-bold ${cfg.color}`}>{cfg.label}</div>
-          <div className="text-sm text-slate-300">{cfg.desc}</div>
+          <div className="text-xs text-slate-600">{cfg.desc}</div>
         </div>
       </div>
 
       {/* Detail staf */}
       {result.staff && (
-        <div className="bg-black/20 rounded-xl px-4 py-3 text-sm space-y-1">
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 text-xs space-y-1.5 shadow-xs">
           <div className="flex justify-between">
-            <span className="text-slate-400">Pemilik Voucher</span>
-            <span className="font-semibold text-white">{result.staff}</span>
+            <span className="text-slate-500">Pemilik Voucher</span>
+            <span className="font-bold text-slate-800">{result.staff}</span>
           </div>
           {result.unit && (
             <div className="flex justify-between">
-              <span className="text-slate-400">Unit / Fakultas</span>
-              <span className="text-slate-200">{result.unit}</span>
+              <span className="text-slate-500">Unit / Fakultas</span>
+              <span className="text-slate-700 font-medium">{result.unit}</span>
             </div>
           )}
           {isOk && result.amount && (
-            <div className="flex justify-between">
-              <span className="text-slate-400">Nilai Voucher</span>
-              <span className="font-bold text-emerald-300">Rp{result.amount.toLocaleString('id')}</span>
+            <div className="flex justify-between border-t border-slate-100 pt-1.5 mt-1.5">
+              <span className="text-slate-500 font-medium">Nilai Voucher</span>
+              <span className="font-bold text-emerald-600">Rp{result.amount.toLocaleString('id')}</span>
             </div>
           )}
         </div>
@@ -64,28 +64,28 @@ function ResultCard({
 
       {/* Rincian pesanan */}
       {isOk && result.order && result.order.items.length > 0 && (
-        <div className="bg-black/20 rounded-xl px-4 py-3 text-sm space-y-2">
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Rincian Pesanan</div>
+        <div className="bg-white rounded-xl p-3.5 border border-slate-200/80 text-xs space-y-2 shadow-xs">
+          <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Rincian Pesanan</div>
           {result.order.items.map((item, i) => (
-            <div key={i} className="flex justify-between text-slate-200">
+            <div key={i} className="flex justify-between text-slate-700">
               <span>{item.name} ×{item.qty}</span>
-              <span>Rp{item.subtotal.toLocaleString('id')}</span>
+              <span className="font-medium">Rp{item.subtotal.toLocaleString('id')}</span>
             </div>
           ))}
-          <div className="border-t border-white/10 pt-2 mt-2 flex justify-between font-semibold">
-            <span className="text-slate-300">Total Pesanan</span>
-            <span className="text-white">Rp{result.order.total.toLocaleString('id')}</span>
+          <div className="border-t border-slate-100 pt-2 mt-2 flex justify-between font-bold">
+            <span className="text-slate-600">Total Pesanan</span>
+            <span className="text-slate-900">Rp{result.order.total.toLocaleString('id')}</span>
           </div>
           {result.order.pay > 0 && (
-            <div className="flex justify-between text-amber-300">
+            <div className="flex justify-between text-amber-700 font-bold bg-amber-50 p-2 rounded-lg border border-amber-200">
               <span>Bayar Tunai (selisih)</span>
-              <span className="font-bold">Rp{result.order.pay.toLocaleString('id')}</span>
+              <span>Rp{result.order.pay.toLocaleString('id')}</span>
             </div>
           )}
           {result.order.pay <= 0 && (
-            <div className="flex justify-between text-emerald-300">
-              <span>Voucher cukup menutup pesanan</span>
-              <span className="font-bold">✓</span>
+            <div className="flex justify-between text-emerald-700 font-bold bg-emerald-50 p-2 rounded-lg border border-emerald-200">
+              <span>Voucher menutup seluruh pesanan</span>
+              <span>✓</span>
             </div>
           )}
         </div>
@@ -93,7 +93,7 @@ function ResultCard({
 
       <button
         onClick={onReset}
-        className="w-full flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 border border-white/10 rounded-xl py-3 text-sm font-semibold text-white transition-all"
+        className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl py-3 text-xs font-bold shadow-md shadow-sky-600/20 transition-all"
       >
         <RotateCcw className="w-4 h-4" />
         Scan Berikutnya
@@ -115,7 +115,7 @@ function MenuPicker({
   if (items.length === 0) return null
   return (
     <div className="space-y-2">
-      <div className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
         Pilih Menu (Opsional)
       </div>
       {items.map((item) => {
@@ -123,26 +123,26 @@ function MenuPicker({
         return (
           <div
             key={item.id}
-            className="flex items-center justify-between bg-slate-800/60 border border-white/5 rounded-xl px-4 py-3"
+            className="flex items-center justify-between bg-white border border-slate-200 rounded-xl px-4 py-2.5 shadow-xs"
           >
             <div>
-              <div className="text-sm font-medium text-white">{item.name}</div>
-              <div className="text-xs text-slate-400">Rp{item.price.toLocaleString('id')}</div>
+              <div className="text-xs font-bold text-slate-800">{item.name}</div>
+              <div className="text-[11px] text-slate-500 font-medium">Rp{item.price.toLocaleString('id')}</div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2.5">
               <button
                 onClick={() => onChange(item.id, Math.max(0, qty - 1))}
                 disabled={qty === 0}
-                className="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-30 flex items-center justify-center transition-all"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 flex items-center justify-center transition-all text-slate-700"
               >
-                <Minus className="w-3.5 h-3.5 text-white" />
+                <Minus className="w-3.5 h-3.5" />
               </button>
-              <span className="w-5 text-center text-sm font-bold text-white">{qty}</span>
+              <span className="w-5 text-center text-xs font-bold text-slate-800">{qty}</span>
               <button
                 onClick={() => onChange(item.id, qty + 1)}
-                className="w-7 h-7 rounded-lg bg-emerald-600 hover:bg-emerald-500 flex items-center justify-center transition-all"
+                className="w-7 h-7 rounded-lg bg-sky-600 hover:bg-sky-500 text-white flex items-center justify-center transition-all shadow-xs"
               >
-                <Plus className="w-3.5 h-3.5 text-white" />
+                <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
@@ -206,152 +206,135 @@ export default function ScanPage() {
     }
   }
 
-  // ── Load data ───────────────────────────────────────────────────────
+  // ── Muat menu stan ──────────────────────────────────────────────────
   const loadMenu = async () => {
-    setMenuLoading(true)
     try {
-      const data = await api.kasir.menu()
-      setMenuItems(data.items ?? [])
+      setMenuLoading(true)
+      const res = await api.kasir.getMenu()
+      setMenuItems(res.items ?? [])
     } catch {
-      setMenuItems([])
+      // Menu opsional, biarkan kosong jika error
     } finally {
       setMenuLoading(false)
     }
   }
 
+  // ── Muat rekap hari ini ─────────────────────────────────────────────
   const loadToday = async () => {
     try {
-      const data = await api.kasir.today()
-      setTodayData(data)
-    } catch {}
+      const res = await api.kasir.getToday()
+      setTodayData(res)
+    } catch {
+      // Abaikan jika gagal
+    }
   }
 
-  // ── Kamera QR ──────────────────────────────────────────────────────
+  // ── Inisialisasi Kamera & QR Scanner ────────────────────────────────
   const startCamera = useCallback(async () => {
-    if (streamRef.current) return
     try {
+      stopCamera()
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 640 } },
       })
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
+        videoRef.current.setAttribute('playsinline', 'true')
         await videoRef.current.play()
         scannerRef.current = true
-        scanLoop()
+        tick()
       }
-    } catch (err) {
-      console.error('Kamera tidak tersedia:', err)
+    } catch {
+      // Gagal akses kamera (mungkin desktop atau izin ditolak), alihkan ke manual
       setInputMode('manual')
     }
   }, [])
 
   const stopCamera = () => {
     scannerRef.current = false
-    cancelAnimationFrame(rafRef.current)
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current)
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop())
+      streamRef.current = null
+    }
   }
 
-  // Loop scan menggunakan BarcodeDetector API (didukung browser modern) atau canvas fallback
-  const scanLoop = useCallback(() => {
-    if (!scannerRef.current || !videoRef.current || !canvasRef.current) return
+  // Loop pemindaian QR menggunakan Canvas + jsQR
+  const tick = () => {
+    if (!scannerRef.current) return
     const video = videoRef.current
     const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx || video.readyState < 2) {
-      rafRef.current = requestAnimationFrame(scanLoop)
-      return
-    }
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    ctx.drawImage(video, 0, 0)
-
-    // Gunakan BarcodeDetector jika tersedia (Chrome 83+, Safari 17+)
-    if ('BarcodeDetector' in window) {
-      const detector = new (window as unknown as { BarcodeDetector: new (opts: object) => { detect(src: HTMLCanvasElement): Promise<Array<{ rawValue: string }>> } }).BarcodeDetector({ formats: ['qr_code'] })
-      detector
-        .detect(canvas)
-        .then((barcodes: Array<{ rawValue: string }>) => {
-          if (barcodes.length > 0 && scannerRef.current) {
-            const qr = barcodes[0].rawValue
-            handleScan(qr)
-          } else {
-            rafRef.current = requestAnimationFrame(scanLoop)
+    if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const jsQR = (window as any).jsQR
+        if (jsQR) {
+          const qr = jsQR(imgData.data, imgData.width, imgData.height, {
+            inversionAttempts: 'dontInvert',
+          })
+          if (qr && qr.data) {
+            handleScanPayload(qr.data)
+            return
           }
-        })
-        .catch(() => {
-          rafRef.current = requestAnimationFrame(scanLoop)
-        })
-    } else {
-      // Fallback: tampilkan pesan minta manual
-      rafRef.current = requestAnimationFrame(scanLoop)
+        }
+      }
     }
-  }, [])
+    rafRef.current = requestAnimationFrame(tick)
+  }
 
+  // Aktifkan / matikan kamera saat tab/mode berubah
   useEffect(() => {
     if (view === 'scan' && inputMode === 'camera' && !authLoading) {
       startCamera()
     } else {
       stopCamera()
     }
-    return () => stopCamera()
   }, [view, inputMode, authLoading, startCamera])
 
-  // ── Handler scan & kode manual ─────────────────────────────────────
-  const getCartItems = () =>
-    Object.entries(cart)
-      .filter(([, qty]) => qty > 0)
+  // ── Kirim payload scan ke server ────────────────────────────────────
+  const handleScanPayload = async (payload: string) => {
+    if (scanning) return
+    setScanning(true)
+    stopCamera()
+
+    // Susun pesanan dari keranjang
+    const items = Object.entries(cart)
+      .filter(([_, qty]) => qty > 0)
       .map(([id, qty]) => ({ id: Number(id), qty }))
 
-  const handleScan = useCallback(
-    async (qr: string) => {
-      if (scanning || !scannerRef.current) return
-      scannerRef.current = false
-      stopCamera()
-      setScanning(true)
-      try {
-        const res = await api.kasir.scan(qr, getCartItems())
-        setResult(res)
-        setView('result')
-        loadToday()
-      } catch (err) {
-        setResult({ result: 'invalid' })
-        setView('result')
-      } finally {
-        setScanning(false)
-      }
-    },
-    [scanning, cart]
-  )
-
-  const handleManualSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!manualCode.trim() || scanning) return
-    setScanning(true)
     try {
-      // Coba sebagai kode pendek dulu (8 char), lalu sebagai QR penuh
-      const clean = manualCode.trim()
-      let res: ScanResult
-      if (clean.replace('-', '').length === 8) {
-        res = await api.kasir.scanCode(clean, getCartItems())
-      } else {
-        res = await api.kasir.scan(clean, getCartItems())
-      }
+      const res = await api.kasir.scanVoucher(payload, items.length > 0 ? items : undefined)
       setResult(res)
       setView('result')
       loadToday()
-    } catch {
-      setResult({ result: 'invalid' })
+    } catch (err: any) {
+      setResult({
+        result: 'invalid',
+        message: err.message || 'Gagal memproses voucher',
+      })
       setView('result')
     } finally {
       setScanning(false)
-      setManualCode('')
     }
   }
 
+  // ── Submit input kode manual ────────────────────────────────────────
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!manualCode.trim()) return
+    handleScanPayload(manualCode.trim())
+  }
+
+  // ── Reset scanner untuk scan berikutnya ─────────────────────────────
   const resetScan = () => {
     setResult(null)
+    setManualCode('')
     setCart({})
     setView('scan')
     if (inputMode === 'camera') {
@@ -359,55 +342,57 @@ export default function ScanPage() {
     }
   }
 
+  // ── Logout kasir ────────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
-      await api.kasir.logout()
+      await fetch('/keluar', { method: 'POST' })
     } finally {
       navigate('/scan/masuk')
     }
   }
 
-  const cartTotal = getCartItems().reduce((sum, { id, qty }) => {
-    const item = menuItems.find((m) => m.id === id)
-    return sum + (item?.price ?? 0) * qty
+  // Hitung total keranjang sementara
+  const cartTotal = Object.entries(cart).reduce((sum, [id, qty]) => {
+    const item = menuItems.find((m) => m.id === Number(id))
+    return sum + (item ? item.price * qty : 0)
   }, 0)
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-slate-300">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
-          <span className="text-sm">Memuat portal kasir...</span>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-sans text-slate-600">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-5 h-5 animate-spin text-sky-600" />
+          <span className="text-xs font-semibold">Memuat portal kasir UPITRA...</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-slate-100 font-sans flex flex-col max-w-md mx-auto">
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col max-w-md mx-auto border-x border-slate-200">
       {/* ── Header ── */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur border-b border-white/10 px-4 py-3">
+      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-sky-100 px-4 py-3 shadow-xs">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center">
-              <QrCode className="w-4 h-4 text-emerald-400" />
+            <div className="w-8 h-8 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center border border-sky-200">
+              <QrCode className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-sm font-bold text-white leading-tight">{stallName}</div>
-              <div className="text-[10px] text-emerald-300/60">Portal Kasir</div>
+              <div className="text-xs font-black text-slate-900 leading-tight">{stallName}</div>
+              <div className="text-[10px] text-sky-700 font-bold uppercase tracking-wider">Kasir UPITRA</div>
             </div>
           </div>
           <div className="flex items-center gap-2">
             {/* Badge hari ini */}
             {todayData && (
-              <div className="hidden sm:flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-400/20 rounded-full px-3 py-1 text-xs text-emerald-300">
-                <Banknote className="w-3.5 h-3.5" />
+              <div className="hidden sm:flex items-center gap-1.5 bg-sky-50 border border-sky-200 rounded-full px-3 py-1 text-xs text-sky-800 font-semibold">
+                <Banknote className="w-3.5 h-3.5 text-sky-600" />
                 {todayData.count} scan · Rp{todayData.total.toLocaleString('id')}
               </div>
             )}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1 text-xs text-rose-400 hover:text-white bg-rose-500/10 hover:bg-rose-600/80 border border-rose-500/20 px-3 py-1.5 rounded-lg transition-all"
+              className="flex items-center gap-1 text-xs text-rose-700 hover:text-white bg-rose-50 hover:bg-rose-600 border border-rose-200 px-2.5 py-1.5 rounded-lg transition-all font-semibold"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Keluar</span>
@@ -424,10 +409,10 @@ export default function ScanPage() {
             <button
               key={id}
               onClick={() => setView(id as View)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-semibold transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-all ${
                 view === id
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-sky-700 hover:bg-sky-50'
               }`}
             >
               <Icon className="w-3.5 h-3.5" />
@@ -449,20 +434,20 @@ export default function ScanPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setInputMode('camera')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold border transition-all ${
                       inputMode === 'camera'
-                        ? 'bg-emerald-600 border-emerald-400/50 text-white'
-                        : 'bg-transparent border-white/10 text-slate-400 hover:text-white'
+                        ? 'bg-sky-600 border-sky-600 text-white shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <Camera className="w-4 h-4" /> Kamera
                   </button>
                   <button
                     onClick={() => setInputMode('manual')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold border transition-all ${
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold border transition-all ${
                       inputMode === 'manual'
-                        ? 'bg-slate-700 border-white/20 text-white'
-                        : 'bg-transparent border-white/10 text-slate-400 hover:text-white'
+                        ? 'bg-sky-600 border-sky-600 text-white shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
                     <Keyboard className="w-4 h-4" /> Ketik Kode
@@ -471,7 +456,7 @@ export default function ScanPage() {
 
                 {/* Kamera viewfinder */}
                 {inputMode === 'camera' && (
-                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-square border border-emerald-400/20 shadow-xl shadow-emerald-500/10">
+                  <div className="relative rounded-2xl overflow-hidden bg-slate-900 aspect-square border-2 border-sky-300 shadow-lg shadow-sky-900/10">
                     <video
                       ref={videoRef}
                       className="w-full h-full object-cover"
@@ -486,27 +471,27 @@ export default function ScanPage() {
                       {/* Corner reticles */}
                       <div className="relative w-52 h-52">
                         {/* Top-left */}
-                        <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-emerald-400 rounded-tl-lg" />
+                        <div className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-sky-400 rounded-tl-lg" />
                         {/* Top-right */}
-                        <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-emerald-400 rounded-tr-lg" />
+                        <div className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-sky-400 rounded-tr-lg" />
                         {/* Bottom-left */}
-                        <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-emerald-400 rounded-bl-lg" />
+                        <div className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-sky-400 rounded-bl-lg" />
                         {/* Bottom-right */}
-                        <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-emerald-400 rounded-br-lg" />
+                        <div className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-sky-400 rounded-br-lg" />
                         {/* Laser scan line */}
-                        <div className="absolute left-2 right-2 top-1/2 h-0.5 bg-emerald-400/70 animate-laser shadow-lg shadow-emerald-400/50" />
+                        <div className="absolute left-2 right-2 top-1/2 h-0.5 bg-sky-400 animate-laser shadow-[0_0_12px_#38bdf8]" />
                       </div>
                     </div>
 
                     {/* Status label */}
                     <div className="absolute bottom-3 left-0 right-0 flex justify-center">
                       {scanning ? (
-                        <div className="flex items-center gap-2 bg-black/70 rounded-full px-4 py-1.5 text-xs text-emerald-300">
+                        <div className="flex items-center gap-2 bg-slate-900/80 backdrop-blur rounded-full px-4 py-1.5 text-xs text-sky-300 font-semibold">
                           <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Memproses...
+                          Memproses voucher...
                         </div>
                       ) : (
-                        <div className="bg-black/50 rounded-full px-4 py-1.5 text-xs text-emerald-300/70">
+                        <div className="bg-slate-900/80 backdrop-blur rounded-full px-4 py-1.5 text-xs text-sky-200/90 font-medium">
                           Arahkan kamera ke QR code voucher
                         </div>
                       )}
@@ -516,9 +501,9 @@ export default function ScanPage() {
 
                 {/* Input kode manual */}
                 {inputMode === 'manual' && (
-                  <form onSubmit={handleManualSubmit} className="space-y-3">
+                  <form onSubmit={handleManualSubmit} className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                     <div>
-                      <label className="block text-xs text-slate-400 mb-2">
+                      <label className="block text-xs font-bold text-slate-700 mb-2">
                         Kode pendek (xxxx-xxxx) atau teks QR lengkap
                       </label>
                       <input
@@ -526,7 +511,7 @@ export default function ScanPage() {
                         value={manualCode}
                         onChange={(e) => setManualCode(e.target.value)}
                         placeholder="Contoh: k7m4-qxp8"
-                        className="w-full bg-slate-800 border border-white/10 text-white rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-400/50 font-mono"
+                        className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-mono font-bold"
                         autoComplete="off"
                         autoFocus
                       />
@@ -534,7 +519,7 @@ export default function ScanPage() {
                     <button
                       type="submit"
                       disabled={!manualCode.trim() || scanning}
-                      className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold rounded-xl py-3 text-sm transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-xs shadow-md shadow-sky-600/20 transition-all"
                     >
                       {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
                       {scanning ? 'Memproses...' : 'Proses Voucher'}
@@ -547,13 +532,13 @@ export default function ScanPage() {
                   <div className="space-y-3">
                     <button
                       onClick={() => setShowMenu(!showMenu)}
-                      className="w-full flex items-center justify-between text-xs font-semibold text-slate-300 bg-slate-800/50 border border-white/5 rounded-xl px-4 py-3 hover:bg-slate-800 transition-all"
+                      className="w-full flex items-center justify-between text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl px-4 py-3 hover:bg-slate-50 transition-all shadow-xs"
                     >
                       <div className="flex items-center gap-2">
-                        <ShoppingCart className="w-4 h-4 text-emerald-400" />
+                        <ShoppingCart className="w-4 h-4 text-sky-600" />
                         Tambah Pesanan Menu
                         {cartTotal > 0 && (
-                          <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          <span className="bg-sky-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             Rp{cartTotal.toLocaleString('id')}
                           </span>
                         )}
@@ -580,25 +565,25 @@ export default function ScanPage() {
         {view === 'today' && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-slate-800/60 border border-white/5 rounded-2xl p-4 text-center">
-                <div className="text-3xl font-black text-emerald-400">{todayData?.count ?? 0}</div>
-                <div className="text-xs text-slate-400 mt-1">Voucher Diklaim</div>
+              <div className="bg-white border border-sky-100 rounded-2xl p-4 text-center shadow-xs">
+                <div className="text-3xl font-black text-sky-600">{todayData?.count ?? 0}</div>
+                <div className="text-xs text-slate-500 font-medium mt-1">Voucher Diklaim</div>
               </div>
-              <div className="bg-slate-800/60 border border-white/5 rounded-2xl p-4 text-center">
-                <div className="text-2xl font-black text-emerald-400">
+              <div className="bg-white border border-sky-100 rounded-2xl p-4 text-center shadow-xs">
+                <div className="text-2xl font-black text-sky-600">
                   Rp{(todayData?.total ?? 0).toLocaleString('id')}
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Total Kas Hari Ini</div>
+                <div className="text-xs text-slate-500 font-medium mt-1">Total Kas Hari Ini</div>
               </div>
             </div>
 
-            <div className="bg-slate-800/40 border border-white/5 rounded-2xl p-4 text-center text-sm text-slate-400">
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-xs">
               Rincian transaksi per voucher dapat dilihat di portal Admin IT (Ringkasan &gt; Transaksi).
             </div>
 
             <button
               onClick={loadToday}
-              className="w-full flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-white/10 rounded-xl py-2.5 text-xs font-semibold text-slate-300 transition-all"
+              className="w-full flex items-center justify-center gap-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl py-2.5 text-xs font-bold text-sky-800 transition-all shadow-xs"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Refresh Data

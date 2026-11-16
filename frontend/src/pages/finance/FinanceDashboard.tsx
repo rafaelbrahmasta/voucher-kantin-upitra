@@ -45,29 +45,29 @@ export default function FinanceDashboard() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <Coins className="w-6 h-6 text-amber-400" />
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Coins className="w-6 h-6 text-amber-600" />
             Ringkasan Anggaran Kas Subsidi Voucher
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Audit penyerapan dana subsidi makan dosen & staf dan kewajiban pencairan stan kantin UPITRA.
           </p>
         </div>
 
         {/* Date Selector & Refresh */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 bg-slate-900/60 border border-white/10 px-3 py-1.5 rounded-xl">
-            <Calendar className="w-4 h-4 text-slate-400" />
+          <div className="flex items-center gap-2 bg-white border border-slate-200 px-3.5 py-2 rounded-xl shadow-xs">
+            <Calendar className="w-4 h-4 text-sky-600" />
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="bg-transparent text-xs text-white focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs text-slate-800 font-semibold focus:outline-none cursor-pointer"
             />
           </div>
           <button
             onClick={() => loadSummary(date)}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-white/10 transition-colors"
+            className="p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -77,80 +77,80 @@ export default function FinanceDashboard() {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Anggaran Diterbitkan */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800/90 border border-white/10 rounded-2xl p-5 shadow-lg">
+        <div className="bg-white border border-sky-100 rounded-2xl p-5 shadow-xs hover:border-sky-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-400">Plafon Anggaran Harian</span>
-            <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Plafon Anggaran Harian</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-white mt-3 font-mono">
+          <div className="text-2xl font-black text-slate-900 mt-3 font-mono">
             {formatRupiah(data?.budgetIssued || 0)}
           </div>
-          <div className="text-xs text-slate-400 mt-1">
+          <div className="text-xs text-slate-500 mt-1">
             {data?.sum?.Issued || 0} kuota voucher terbit
           </div>
         </div>
 
         {/* Card 2: Terserap / Digunakan */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800/90 border border-white/10 rounded-2xl p-5 shadow-lg">
+        <div className="bg-white border border-emerald-100 rounded-2xl p-5 shadow-xs hover:border-emerald-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-emerald-400">Realisasi Kas Terserap</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+            <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Realisasi Kas Terserap</span>
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-emerald-400 mt-3 font-mono">
+          <div className="text-2xl font-black text-emerald-600 mt-3 font-mono">
             {formatRupiah(data?.budgetUsed || 0)}
           </div>
-          <div className="text-xs text-emerald-300/80 mt-1 font-semibold">
+          <div className="text-xs text-emerald-700 font-bold mt-1">
             {data?.pctUsed || 0}% dari plafon anggaran
           </div>
         </div>
 
         {/* Card 3: Efisiensi / Hangus */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800/90 border border-white/10 rounded-2xl p-5 shadow-lg">
+        <div className="bg-white border border-amber-100 rounded-2xl p-5 shadow-xs hover:border-amber-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-400">Sisa Anggaran Kembali</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center">
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider">Sisa Anggaran Kembali</span>
+            <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
               <Clock className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-amber-400 mt-3 font-mono">
+          <div className="text-2xl font-black text-amber-600 mt-3 font-mono">
             {formatRupiah(data?.budgetExpired || 0)}
           </div>
-          <div className="text-xs text-amber-300/80 mt-1">
+          <div className="text-xs text-amber-800 font-medium mt-1">
             {data?.unused || 0} voucher tidak digunakan
           </div>
         </div>
 
         {/* Card 4: Klaim Pencairan */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 to-slate-800/90 border border-white/10 rounded-2xl p-5 shadow-lg">
+        <div className="bg-white border border-sky-100 rounded-2xl p-5 shadow-xs hover:border-sky-300 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-purple-400">Kewajiban Stan Kantin</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Kewajiban Stan Kantin</span>
+            <div className="w-8 h-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center border border-sky-100">
               <HandCoins className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-extrabold text-white mt-3 font-mono">
+          <div className="text-2xl font-black text-slate-900 mt-3 font-mono">
             {formatRupiah(data?.budgetUsed || 0)}
           </div>
-          <div className="text-xs text-purple-300/80 mt-1">
+          <div className="text-xs text-sky-700 font-semibold mt-1">
             Siap dicairkan ke rekening mitra
           </div>
         </div>
       </div>
 
       {/* Budget Absorption Bar */}
-      <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-5 backdrop-blur-sm shadow-xl space-y-3">
+      <div className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-xs space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-bold text-white">Komposisi Penyerapan Subsidi Kampus</span>
-          <span className="text-slate-400 font-mono">
+          <span className="font-bold text-slate-900">Komposisi Penyerapan Subsidi Kampus</span>
+          <span className="text-slate-500 font-mono">
             Total Kuota: {data?.sum?.Issued || 0} lembar ({formatRupiah(data?.budgetIssued || 0)})
           </span>
         </div>
 
-        <div className="w-full bg-slate-800 h-3 rounded-full overflow-hidden flex">
+        <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden flex">
           <div
             title={`Terserap: ${data?.pctUsed || 0}%`}
             style={{ width: `${data?.pctUsed || 0}%` }}
@@ -159,7 +159,7 @@ export default function FinanceDashboard() {
           <div
             title={`Hangus: ${data?.pctExpired || 0}%`}
             style={{ width: `${data?.pctExpired || 0}%` }}
-            className="bg-amber-500 h-full transition-all duration-500"
+            className="bg-amber-400 h-full transition-all duration-500"
           ></div>
           <div
             title={`Batal: ${data?.pctVoid || 0}%`}
@@ -171,21 +171,21 @@ export default function FinanceDashboard() {
         <div className="flex flex-wrap items-center gap-6 text-[11px] pt-1">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-sm bg-emerald-500"></div>
-            <span className="text-slate-300">
-              Terserap: <strong className="text-white">{data?.pctUsed || 0}%</strong> ({formatRupiah(data?.budgetUsed || 0)})
+            <span className="text-slate-600">
+              Terserap: <strong className="text-slate-900">{data?.pctUsed || 0}%</strong> ({formatRupiah(data?.budgetUsed || 0)})
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-sm bg-amber-500"></div>
-            <span className="text-slate-300">
-              Hangus / Kembali ke Kas: <strong className="text-white">{data?.pctExpired || 0}%</strong> ({formatRupiah(data?.budgetExpired || 0)})
+            <div className="w-3 h-3 rounded-sm bg-amber-400"></div>
+            <span className="text-slate-600">
+              Kembali ke Kas: <strong className="text-slate-900">{data?.pctExpired || 0}%</strong> ({formatRupiah(data?.budgetExpired || 0)})
             </span>
           </div>
           {data?.budgetVoid > 0 && (
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-sm bg-rose-500"></div>
-              <span className="text-slate-300">
-                Dibatalkan: <strong className="text-white">{data?.pctVoid || 0}%</strong> ({formatRupiah(data?.budgetVoid || 0)})
+              <span className="text-slate-600">
+                Dibatalkan: <strong className="text-slate-900">{data?.pctVoid || 0}%</strong> ({formatRupiah(data?.budgetVoid || 0)})
               </span>
             </div>
           )}
@@ -195,34 +195,34 @@ export default function FinanceDashboard() {
       {/* Two Column Layout: Stalls Reimbursement & Transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left: Kewajiban Pencairan per Stan */}
-        <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex flex-col justify-between">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <HandCoins className="w-4 h-4 text-amber-400" />
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <HandCoins className="w-4 h-4 text-amber-600" />
                 Klaim Kas per Stan Kantin
               </h3>
               <Link
                 to="/finance/pencairan"
-                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
+                className="text-xs text-amber-600 hover:text-amber-700 flex items-center gap-1 font-bold"
               >
                 Lihat Rekap Pencairan <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
             {data?.tenants && data.tenants.length > 0 ? (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-slate-100">
                 {data.tenants.map((t: any, idx: number) => (
                   <div key={idx} className="py-3 flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-bold text-white">{t.Name}</div>
+                      <div className="font-bold text-slate-800">{t.Name}</div>
                       <div className="text-[11px] text-slate-400 mt-0.5">{t.Count} transaksi voucher</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-emerald-400 font-bold text-sm">
+                      <div className="font-mono text-emerald-600 font-bold text-sm">
                         {formatRupiah(t.Amount)}
                       </div>
-                      <span className="inline-block text-[10px] text-amber-300 font-semibold bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 mt-1">
+                      <span className="inline-block text-[10px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded border border-amber-200 mt-1">
                         Menunggu Pencairan
                       </span>
                     </div>
@@ -230,51 +230,51 @@ export default function FinanceDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center text-slate-500 text-xs">
+              <div className="py-12 text-center text-slate-400 text-xs">
                 Tidak ada klaim pencairan voucher pada tanggal ini.
               </div>
             )}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-slate-400">
+          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
             <span>Metode Pencairan:</span>
-            <span className="font-semibold text-slate-200">Transfer Bank Mitra (BCA / Mandiri / BRI)</span>
+            <span className="font-bold text-slate-800">Transfer Bank Mitra (BCA / Mandiri / BRI)</span>
           </div>
         </div>
 
         {/* Right: Transaksi Kas Terkini */}
-        <div className="bg-slate-900/60 border border-white/10 rounded-2xl p-6 backdrop-blur-sm shadow-xl flex flex-col justify-between">
+        <div className="bg-white border border-slate-200/80 rounded-2xl p-6 shadow-xs flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <Receipt className="w-4 h-4 text-blue-400" />
+            <div className="flex items-center justify-between mb-5 pb-3 border-b border-slate-100">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Receipt className="w-4 h-4 text-sky-600" />
                 Audit Transaksi Terkini
               </h3>
               <Link
                 to="/finance/transaksi"
-                className="text-xs text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold"
+                className="text-xs text-sky-600 hover:text-sky-700 flex items-center gap-1 font-bold"
               >
                 Buka Semua <ArrowUpRight className="w-3.5 h-3.5" />
               </Link>
             </div>
 
             {data?.recent && data.recent.length > 0 ? (
-              <div className="divide-y divide-white/5">
+              <div className="divide-y divide-slate-100">
                 {data.recent.slice(0, 5).map((tx: any, idx: number) => (
                   <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
                     <div>
-                      <div className="font-bold text-white">{tx.Staff}</div>
+                      <div className="font-bold text-slate-800">{tx.Staff}</div>
                       <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
                         <span>{tx.Unit}</span>
                         <span>•</span>
-                        <span className="text-slate-300">{tx.Tenant}</span>
+                        <span className="text-slate-600 font-medium">{tx.Tenant}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-emerald-400 font-bold">
+                      <div className="font-mono text-emerald-600 font-bold">
                         {formatRupiah(tx.Amount)}
                       </div>
-                      <div className="text-[10px] text-slate-500">
+                      <div className="text-[10px] text-slate-400">
                         {new Date(tx.At).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
                       </div>
                     </div>
@@ -282,18 +282,18 @@ export default function FinanceDashboard() {
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center text-slate-500 text-xs">
+              <div className="py-12 text-center text-slate-400 text-xs">
                 Belum ada transaksi tercatat pada tanggal ini.
               </div>
             )}
           </div>
 
-          <div className="mt-6 pt-4 border-t border-white/5">
+          <div className="mt-6 pt-4 border-t border-slate-100">
             <Link
               to="/finance/pencairan"
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-xs font-semibold text-amber-300 hover:text-white transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-xs font-bold text-amber-800 transition-colors"
             >
-              <HandCoins className="w-4 h-4" />
+              <HandCoins className="w-4 h-4 text-amber-600" />
               Proses Rekap Pencairan Kas Stan Kantin
             </Link>
           </div>

@@ -161,18 +161,18 @@ export default function AdminStaffPage() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <Users className="w-6 h-6 text-blue-400" />
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Users className="w-6 h-6 text-sky-600" />
             Manajemen Dosen & Staf
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 mt-1">
             Kelola daftar penerima voucher makan harian Rp5.000 Universitas Pignatelli Triputra.
           </p>
         </div>
 
         <button
           onClick={() => handleOpenModal()}
-          className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm shadow-sky-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           <Plus className="w-4 h-4" />
           Tambah Dosen / Staf
@@ -181,22 +181,22 @@ export default function AdminStaffPage() {
 
       {/* Metric Highlights */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 backdrop-blur-sm">
-          <span className="text-xs text-slate-400 font-medium">Total Dosen & Staf</span>
-          <div className="text-2xl font-extrabold text-white mt-1">{totalCount} orang</div>
+        <div className="bg-white border border-sky-100 rounded-2xl p-4 shadow-xs">
+          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Dosen & Staf</span>
+          <div className="text-2xl font-black text-slate-900 mt-1">{totalCount} orang</div>
         </div>
-        <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 backdrop-blur-sm">
-          <span className="text-xs text-emerald-400 font-medium">Penerima Aktif</span>
-          <div className="text-2xl font-extrabold text-emerald-400 mt-1">{activeCount} orang</div>
+        <div className="bg-white border border-emerald-100 rounded-2xl p-4 shadow-xs">
+          <span className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Penerima Aktif</span>
+          <div className="text-2xl font-black text-emerald-600 mt-1">{activeCount} orang</div>
         </div>
-        <div className="bg-slate-900/60 border border-white/5 rounded-2xl p-4 backdrop-blur-sm">
-          <span className="text-xs text-rose-400 font-medium">Status Non-Aktif</span>
-          <div className="text-2xl font-extrabold text-rose-400 mt-1">{totalCount - activeCount} orang</div>
+        <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-xs">
+          <span className="text-xs text-rose-700 font-semibold uppercase tracking-wider">Status Non-Aktif</span>
+          <div className="text-2xl font-black text-rose-600 mt-1">{totalCount - activeCount} orang</div>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-2xl border border-white/5">
+      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
         <form onSubmit={handleSearch} className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
@@ -204,33 +204,33 @@ export default function AdminStaffPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari nama, NIP, email, atau unit..."
-            className="w-full bg-slate-800/80 border border-white/10 rounded-xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
           />
         </form>
 
         <div className="flex items-center gap-2">
           {/* Status Tabs */}
-          <div className="flex items-center bg-slate-800/60 p-1 rounded-xl border border-white/5 text-xs">
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
             <button
               onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'all' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                statusFilter === 'all' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Semua ({totalCount})
             </button>
             <button
               onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'active' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Aktif ({activeCount})
             </button>
             <button
               onClick={() => setStatusFilter('inactive')}
-              className={`px-3 py-1 rounded-lg font-medium transition-colors ${
-                statusFilter === 'inactive' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'
+              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
+                statusFilter === 'inactive' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Nonaktif ({totalCount - activeCount})
@@ -240,7 +240,7 @@ export default function AdminStaffPage() {
           <button
             onClick={() => loadStaff(search)}
             title="Refresh data"
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-white/10 transition-colors"
+            className="p-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -248,11 +248,11 @@ export default function AdminStaffPage() {
       </div>
 
       {/* Staff Table */}
-      <div className="bg-slate-900/60 border border-white/10 rounded-2xl overflow-hidden backdrop-blur-sm shadow-xl">
+      <div className="bg-white border border-slate-200/80 rounded-2xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="bg-slate-800/80 border-b border-white/10 text-slate-300 font-semibold uppercase tracking-wider text-[11px]">
+              <tr className="bg-sky-50/70 border-b border-slate-200 text-slate-700 font-bold uppercase tracking-wider text-[11px]">
                 <th className="py-3.5 px-4">Nama Lengkap & NIP</th>
                 <th className="py-3.5 px-4">Email Kampus (Outlook)</th>
                 <th className="py-3.5 px-4">Unit / Fakultas</th>
@@ -260,43 +260,43 @@ export default function AdminStaffPage() {
                 <th className="py-3.5 px-4 text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400">
-                    <div className="inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <div className="inline-block w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p>Memuat data dosen dan staf...</p>
                   </td>
                 </tr>
               ) : filteredStaff.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-slate-400">
-                    <Users className="w-8 h-8 mx-auto text-slate-600 mb-2" />
-                    <p className="font-medium text-slate-300">Tidak ada data dosen atau staf ditemukan.</p>
-                    <p className="text-[11px] text-slate-500 mt-1">Coba sesuaikan kata kunci pencarian atau tambah staf baru.</p>
+                    <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                    <p className="font-semibold text-slate-700">Tidak ada data dosen atau staf ditemukan.</p>
+                    <p className="text-[11px] text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau tambah staf baru.</p>
                   </td>
                 </tr>
               ) : (
                 filteredStaff.map((staff) => (
                   <tr
                     key={staff.id}
-                    className="hover:bg-white/[0.02] transition-colors group"
+                    className="hover:bg-sky-50/30 transition-colors group"
                   >
                     {/* Name & NIP */}
                     <td className="py-3.5 px-4">
-                      <div className="font-bold text-white text-sm group-hover:text-blue-300 transition-colors">
+                      <div className="font-bold text-slate-900 text-sm group-hover:text-sky-600 transition-colors">
                         {staff.name}
                       </div>
                       <div className="flex items-center gap-1.5 text-slate-400 font-mono text-[11px] mt-0.5">
-                        <IdCard className="w-3.5 h-3.5 text-slate-500" />
-                        {staff.nip ? staff.nip : <span className="italic text-slate-600">Tanpa NIP</span>}
+                        <IdCard className="w-3.5 h-3.5 text-slate-400" />
+                        {staff.nip ? staff.nip : <span className="italic text-slate-400">Tanpa NIP</span>}
                       </div>
                     </td>
 
                     {/* Email */}
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-3.5 px-4 text-slate-600">
                       <div className="flex items-center gap-1.5 font-mono text-[11px]">
-                        <Mail className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                        <Mail className="w-3.5 h-3.5 text-sky-500 shrink-0" />
                         <span className="truncate max-w-[220px]" title={staff.email}>
                           {staff.email}
                         </span>
@@ -304,22 +304,22 @@ export default function AdminStaffPage() {
                     </td>
 
                     {/* Unit / Faculty */}
-                    <td className="py-3.5 px-4 text-slate-300">
+                    <td className="py-3.5 px-4 text-slate-600">
                       <div className="flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                        <span>{staff.unit || <span className="italic text-slate-500">Umum</span>}</span>
+                        <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                        <span>{staff.unit || <span className="italic text-slate-400">Umum</span>}</span>
                       </div>
                     </td>
 
                     {/* Status */}
                     <td className="py-3.5 px-4 text-center">
                       {staff.is_active ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <CheckCircle2 className="w-3 h-3" />
                           Aktif (Dapat Voucher)
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200">
                           <XCircle className="w-3 h-3" />
                           Nonaktif
                         </span>
@@ -335,8 +335,8 @@ export default function AdminStaffPage() {
                           title={staff.is_active ? 'Nonaktifkan voucher' : 'Aktifkan voucher'}
                           className={`p-1.5 rounded-lg border transition-all ${
                             staff.is_active
-                              ? 'bg-amber-500/10 text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-                              : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
                           }`}
                         >
                           <Power className="w-3.5 h-3.5" />
@@ -346,7 +346,7 @@ export default function AdminStaffPage() {
                         <button
                           onClick={() => handleOpenModal(staff)}
                           title="Ubah data"
-                          className="p-1.5 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/30 hover:bg-blue-500/20 transition-all"
+                          className="p-1.5 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition-all"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
@@ -355,7 +355,7 @@ export default function AdminStaffPage() {
                         <button
                           onClick={() => handleDelete(staff.id, staff.name)}
                           title="Hapus data"
-                          className="p-1.5 rounded-lg bg-rose-500/10 text-rose-300 border border-rose-500/30 hover:bg-rose-500/20 transition-all"
+                          className="p-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition-all"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -371,17 +371,17 @@ export default function AdminStaffPage() {
 
       {/* Modal Tambah / Edit */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-white/10 rounded-2xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-slate-800/50">
-              <h3 className="font-bold text-sm text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-blue-400" />
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-sky-50/60">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center gap-2">
+                <Users className="w-4 h-4 text-sky-600" />
                 {editingStaff ? `Ubah Data: ${editingStaff.name}` : 'Tambah Dosen & Staf Baru'}
               </h3>
               <button
                 onClick={handleCloseModal}
-                className="text-slate-400 hover:text-white p-1 rounded-lg transition-colors"
+                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -390,15 +390,15 @@ export default function AdminStaffPage() {
             {/* Modal Form */}
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {errorMessage && (
-                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{errorMessage}</span>
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Nama Lengkap & Gelar <span className="text-rose-400">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Lengkap & Gelar <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -406,13 +406,13 @@ export default function AdminStaffPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Contoh: Dr. Rina Kusuma, M.Kom."
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Email Kampus (Akun Microsoft 365) <span className="text-rose-400">*</span>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Email Kampus (Akun Microsoft 365) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="email"
@@ -420,16 +420,16 @@ export default function AdminStaffPage() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="nama@upitra.ac.id atau nama@student.upitra.ac.id"
-                  className="w-full bg-slate-800 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 font-mono"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-slate-400 mt-1">
                   Email ini yang menerima voucher QR code otomatis setiap pagi pukul 09.55 WIB.
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     NIP / Nomor Pegawai
                   </label>
                   <input
@@ -437,12 +437,12 @@ export default function AdminStaffPage() {
                     value={formData.nip}
                     onChange={(e) => setFormData({ ...formData, nip: e.target.value })}
                     placeholder="UPITRA-001"
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500 font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
                     Unit / Fakultas
                   </label>
                   <input
@@ -450,24 +450,24 @@ export default function AdminStaffPage() {
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     placeholder="FTI / Rektorat"
-                    className="w-full bg-slate-800 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs text-slate-900 focus:bg-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
               </div>
 
               <div className="pt-2">
-                <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-800/60 border border-white/5 cursor-pointer hover:bg-slate-800 transition-colors">
+                <label className="flex items-start gap-3 p-3 rounded-xl bg-sky-50/60 border border-sky-100 cursor-pointer hover:bg-sky-50 transition-colors">
                   <input
                     type="checkbox"
                     checked={formData.is_active}
                     onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                    className="mt-0.5 rounded border-slate-700 text-blue-600 focus:ring-blue-500 w-4 h-4"
+                    className="mt-0.5 rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-4 h-4"
                   />
                   <div>
-                    <span className="text-xs font-bold text-white block">
+                    <span className="text-xs font-bold text-slate-900 block">
                       Aktif Menerima Voucher
                     </span>
-                    <span className="text-[11px] text-slate-400 block mt-0.5">
+                    <span className="text-[11px] text-slate-500 block mt-0.5">
                       Jika dicentang, staf ini otomatis mendapatkan voucher Rp5.000 setiap hari kerja.
                     </span>
                   </div>
@@ -475,18 +475,18 @@ export default function AdminStaffPage() {
               </div>
 
               {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-white/10">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={handleCloseModal}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-colors"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 shadow-md shadow-blue-500/25 transition-all disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-sm shadow-sky-500/25 transition-all disabled:opacity-50"
                 >
                   {submitting ? 'Menyimpan...' : editingStaff ? 'Simpan Perubahan' : 'Tambahkan Staf'}
                 </button>

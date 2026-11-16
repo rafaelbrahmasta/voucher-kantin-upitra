@@ -163,26 +163,26 @@ export default function AdminTenantsPage() {
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
-            <Store className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
+            <Store className="w-6 h-6 text-sky-600" />
             Manajemen Stan Kantin
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Kelola stan makanan & minuman, koneksi scanner HP kasir, dan rekening pencairan.
+          <p className="text-xs text-slate-500 mt-1">
+            Kelola stan makanan & minuman mitra UPITRA, koneksi scanner HP kasir, dan rekening pencairan.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => handleOpenModal()}
-            className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm shadow-sky-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <Plus className="w-4 h-4" />
             Tambah Stan Kantin
           </button>
           <button
             onClick={loadTenants}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-white/10 transition-colors"
+            className="p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -193,61 +193,61 @@ export default function AdminTenantsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
           <div className="col-span-full py-16 text-center text-slate-400">
-            <div className="inline-block w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <div className="inline-block w-8 h-8 border-3 border-sky-500 border-t-transparent rounded-full animate-spin mb-3"></div>
             <p className="text-xs">Memuat daftar stan kantin...</p>
           </div>
         ) : tenants.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-slate-500 bg-slate-900/40 rounded-2xl border border-white/5">
-            <Store className="w-10 h-10 mx-auto text-slate-600 mb-2" />
-            <p className="text-sm font-semibold text-slate-300">Belum ada stan kantin terdaftar</p>
-            <p className="text-xs text-slate-500 mt-1">Klik tombol "+ Tambah Stan Kantin" untuk mendaftarkan stan baru.</p>
+          <div className="col-span-full py-16 text-center text-slate-400 bg-white rounded-2xl border border-slate-200 p-8 shadow-xs">
+            <Store className="w-10 h-10 mx-auto text-slate-300 mb-2" />
+            <p className="text-sm font-semibold text-slate-700">Belum ada stan kantin terdaftar</p>
+            <p className="text-xs text-slate-400 mt-1">Klik tombol "+ Tambah Stan Kantin" untuk mendaftarkan stan baru.</p>
           </div>
         ) : (
           tenants.map((t) => (
             <div
               key={t.id}
-              className="bg-slate-900/60 border border-white/10 rounded-2xl p-5 backdrop-blur-sm shadow-xl flex flex-col justify-between hover:border-emerald-500/30 transition-all duration-300 group"
+              className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs flex flex-col justify-between hover:border-sky-400 hover:shadow-md transition-all duration-300 group"
             >
               <div>
                 {/* Top Badge & Title */}
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 border border-white/5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-100">
                       {t.stall || 'Stan Umum'}
                     </span>
-                    <h3 className="font-extrabold text-base text-white mt-1.5 group-hover:text-emerald-300 transition-colors">
+                    <h3 className="font-black text-base text-slate-900 mt-1.5 group-hover:text-sky-600 transition-colors">
                       {t.name}
                     </h3>
                   </div>
                   {t.active ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                       Aktif
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
                       Tutup
                     </span>
                   )}
                 </div>
 
                 {/* Info Fields */}
-                <div className="space-y-2 text-xs text-slate-300 py-3 border-y border-white/5 my-3">
+                <div className="space-y-2 text-xs text-slate-600 py-3 border-y border-slate-100 my-3">
                   <div className="flex items-center gap-2">
-                    <User className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span>Pemilik: <strong className="text-white">{t.owner || '-'}</strong></span>
+                    <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Pemilik: <strong className="text-slate-900">{t.owner || '-'}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <CreditCard className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                    <span>Rekening: <strong className="font-mono text-white">{t.bank_name} {t.bank_account}</strong></span>
+                    <CreditCard className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Rekening: <strong className="font-mono text-slate-900">{t.bank_name} {t.bank_account}</strong></span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Smartphone className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <Smartphone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                     <span>
                       Perangkat Kasir:{' '}
                       {t.has_device ? (
-                        <span className="text-emerald-400 font-semibold">● Terhubung</span>
+                        <span className="text-emerald-600 font-bold">● Terhubung</span>
                       ) : (
-                        <span className="text-slate-500 italic">Belum terhubung</span>
+                        <span className="text-slate-400 italic">Belum terhubung</span>
                       )}
                     </span>
                   </div>
@@ -259,7 +259,7 @@ export default function AdminTenantsPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => handleIssueCode(t.id, t.name)}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-xs font-semibold transition-colors"
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-xs font-bold transition-colors"
                   >
                     <KeyRound className="w-3.5 h-3.5" />
                     Kode Pairing
@@ -268,7 +268,7 @@ export default function AdminTenantsPage() {
                   <button
                     onClick={() => handleRevokeDevice(t.id, t.name)}
                     disabled={!t.has_device}
-                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-white/10 text-xs font-semibold transition-colors disabled:opacity-40 disabled:hover:bg-slate-800"
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-colors disabled:opacity-40"
                   >
                     <Unplug className="w-3.5 h-3.5" />
                     Putus HP
@@ -278,14 +278,14 @@ export default function AdminTenantsPage() {
                 <div className="flex items-center justify-end gap-2 pt-1">
                   <button
                     onClick={() => handleOpenModal(t)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 transition-colors"
                     title="Ubah stan"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDelete(t.id, t.name)}
-                    className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 transition-colors"
+                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors"
                     title="Hapus stan"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
