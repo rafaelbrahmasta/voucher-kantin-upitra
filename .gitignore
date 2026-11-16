@@ -1,3 +1,6 @@
 .env
+.env.local
 bin/
 *.log
+node_modules/
+/backend-rust/target/
