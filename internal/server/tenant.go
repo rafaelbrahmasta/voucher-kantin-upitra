@@ -271,6 +271,33 @@ func (s *Server) handleScanCode(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, s.finish(r, tid, res, in.Items))
 }
 
+// handleAPIScanMe mengembalikan informasi sesi stan kasir yang sedang aktif.
+func (s *Server) handleAPIScanMe(w http.ResponseWriter, r *http.Request) {
+	tID, ok := s.tenantID(w, r)
+	if !ok || tID <= 0 {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"authenticated": false,
+			"role":          "",
+		})
+		return
+	}
+	tenant, err := s.deps.Reports.Tenant(r.Context(), tID)
+	tName := "Stan Kantin"
+	tStall := ""
+	if err == nil {
+		tName = tenant.Name
+		tStall = tenant.Stall
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"authenticated": true,
+		"role":          "tenant",
+		"tenantId":      tID,
+		"displayName":   tName,
+		"stall":         tName,
+		"stallLocation": tStall,
+	})
+}
+
 // handleAPIScanPair memproses pairing perangkat HP kasir stan via kode pairing atau pilihan stan langsung.
 func (s *Server) handleAPIScanPair(w http.ResponseWriter, r *http.Request) {
 	var in struct {

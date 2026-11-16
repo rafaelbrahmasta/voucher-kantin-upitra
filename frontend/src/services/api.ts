@@ -8,6 +8,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     : `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
 
   const res = await fetch(cleanPath, {
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       ...options?.headers,
@@ -165,7 +166,7 @@ export const api = {
 
   // Kasir / Tenant (pakai cookie sesi kasir)
   kasir: {
-    me: () => request<AuthSession>('/auth/me'),
+    me: () => request<AuthSession>('/scan/me'),
     scan: (qr: string, items?: Array<{ id: number; qty: number }>) =>
       request<ScanResult>('/scan', {
         method: 'POST',

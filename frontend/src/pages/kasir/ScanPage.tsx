@@ -190,16 +190,81 @@ export default function ScanPage() {
   }, [])
 
   const checkAuth = async () => {
+    // 1. Baca sesi lokal dulu sebagai fallback instan
+    let localStall = ''
+    let localTenantId = 0
+    try {
+      const saved = localStorage.getItem('upitra_kasir_session')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (parsed?.stall) {
+          localStall = parsed.stall
+          localTenantId = parsed.tenantId || 0
+          setStallName(parsed.stall)
+        }
+      }
+    } catch {}
+
     try {
       const session = await api.kasir.me()
-      if (!session.authenticated || session.role !== 'tenant') {
-        navigate('/scan/masuk')
+      if (session.authenticated) {
+        const name = session.stall || session.displayName || localStall || 'Stan Kantin'
+        setStallName(name)
+        localStorage.setItem('upitra_kasir_session', JSON.stringify({
+          authenticated: true,
+          role: 'tenant',
+          tenantId: session.tenantId,
+          stall: name,
+        }))
+        loadMenu()
+        loadToday()
         return
       }
-      setStallName(session.stall ?? 'Stan Kantin')
-      loadMenu()
-      loadToday()
+
+      // 2. Jika cookie belum terbaca tapi ada data di localStorage, pulihkan sesi dengan auto-pair
+      if (localTenantId > 0) {
+        try {
+          const rePair = await api.kasir.pair({ tenant_id: localTenantId })
+          if (rePair.ok) {
+            setStallName(rePair.stall || localStall || 'Stan Kantin')
+            loadMenu()
+            loadToday()
+            return
+          }
+        } catch {}
+      }
+
+      // 3. Fallback dev: hubungkan otomatis ke stan pertama jika ada
+      try {
+        const tenantsRes = await api.kasir.getTenants()
+        if (tenantsRes.tenants && tenantsRes.tenants.length > 0) {
+          const first = tenantsRes.tenants[0]
+          const auto = await api.kasir.pair({ tenant_id: first.id })
+          if (auto.ok) {
+            setStallName(first.name)
+            localStorage.setItem('upitra_kasir_session', JSON.stringify({
+              authenticated: true,
+              role: 'tenant',
+              tenantId: first.id,
+              stall: first.name,
+            }))
+            loadMenu()
+            loadToday()
+            return
+          }
+        }
+      } catch {}
+
+      if (localStall) {
+        setStallName(localStall)
+        return
+      }
+      navigate('/scan/masuk')
     } catch {
+      if (localStall) {
+        setStallName(localStall)
+        return
+      }
       navigate('/scan/masuk')
     } finally {
       setAuthLoading(false)
@@ -345,6 +410,7 @@ export default function ScanPage() {
   // ── Logout kasir ────────────────────────────────────────────────────
   const handleLogout = async () => {
     try {
+      localStorage.removeItem('upitra_kasir_session')
       await fetch('/keluar', { method: 'POST' })
     } finally {
       navigate('/scan/masuk')

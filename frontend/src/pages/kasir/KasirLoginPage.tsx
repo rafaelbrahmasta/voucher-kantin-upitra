@@ -53,6 +53,12 @@ export default function KasirLoginPage() {
     try {
       const res = await api.kasir.pair({ code: normalized })
       if (res.ok) {
+        localStorage.setItem('upitra_kasir_session', JSON.stringify({
+          authenticated: true,
+          role: 'tenant',
+          tenantId: res.tenant_id,
+          stall: res.stall || 'Stan Kantin',
+        }))
         navigate('/scan')
       } else {
         setError(res.error || 'Kode pairing tidak valid atau sudah kedaluwarsa. Minta kode baru dari Admin IT.')
@@ -71,6 +77,12 @@ export default function KasirLoginPage() {
     try {
       const res = await api.kasir.pair({ tenant_id: tenantId })
       if (res.ok) {
+        localStorage.setItem('upitra_kasir_session', JSON.stringify({
+          authenticated: true,
+          role: 'tenant',
+          tenantId: res.tenant_id || tenantId,
+          stall: res.stall || 'Stan Kantin',
+        }))
         navigate('/scan')
       } else {
         setError(res.error || 'Gagal menghubungkan ke stan tersebut')
