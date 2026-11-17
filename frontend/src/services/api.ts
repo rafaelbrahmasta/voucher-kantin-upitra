@@ -1,6 +1,6 @@
 import { Staff, Tenant, Transaction, AdminSummaryData, AuthSession, MenuItemScan, ScanResult, TodayData } from '../types'
 
-const API_BASE = '/api'
+const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '') + '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const cleanPath = path.startsWith('/api/') || path === '/api'
