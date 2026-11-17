@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
 
-    match issuer::run_issue_vouchers(&pool, &cfg.qr_key, &cfg.short_key, target_date, force).await {
+    match issuer::run_issue_vouchers(&pool, &cfg, target_date, force).await {
         Ok(res) => {
             println!("📅 Tanggal: {}", res.date);
             println!("👥 Total Staf Aktif: {}", res.total_staff);

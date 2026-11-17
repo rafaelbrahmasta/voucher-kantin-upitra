@@ -332,8 +332,7 @@ pub async fn handle_admin_issue_vouchers(
 
     let summary = crate::issuer::run_issue_vouchers(
         &state.pool,
-        &state.config.qr_key,
-        &state.config.short_key,
+        &state.config,
         target_date,
         force,
     )

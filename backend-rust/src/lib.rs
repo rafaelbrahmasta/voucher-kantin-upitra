@@ -2,6 +2,7 @@ pub mod config;
 pub mod crypto;
 pub mod db;
 pub mod issuer;
+pub mod mailer;
 pub mod models;
 pub mod rate_limit;
 pub mod routes;

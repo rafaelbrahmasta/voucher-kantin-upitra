@@ -1,6 +1,8 @@
 use chrono::{Datelike, FixedOffset, Local, NaiveDate, Utc};
 use sqlx::{PgPool, Row};
+use crate::config::Config;
 use crate::crypto;
+use crate::mailer::{self, VoucherEmailData};
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct IssueSummary {
@@ -15,8 +17,7 @@ pub struct IssueSummary {
 
 pub async fn run_issue_vouchers(
     pool: &PgPool,
-    _qr_key: &[u8],
-    short_key: &[u8],
+    cfg: &Config,
     target_date: Option<NaiveDate>,
     force: bool,
 ) -> Result<IssueSummary, String> {
@@ -63,10 +64,10 @@ pub async fn run_issue_vouchers(
     let mut skipped_count = 0;
     let mut details = Vec::new();
 
-    // Jam operasional voucher: 08:00 s.d 16:00 WIB (UTC+7)
+    // Jam operasional voucher: 10:00 s.d 16:00 WIB (UTC+7)
     let wib = FixedOffset::east_opt(7 * 3600).unwrap();
     let valid_from = date
-        .and_hms_opt(8, 0, 0)
+        .and_hms_opt(10, 0, 0)
         .unwrap()
         .and_local_timezone(wib)
         .unwrap()
@@ -102,16 +103,35 @@ pub async fn run_issue_vouchers(
         // Generate token kriptografi & kode pendek
         let token = crypto::generate_token();
         let token_hash = crypto::hash_token(&token);
+        let qr_payload = crypto::create_qr_payload(&cfg.qr_key, &token);
+
         let short_code = crypto::generate_short_code();
         let raw_code = short_code.replace(['-', ' '], "");
-        let short_code_hash = crypto::short_code_hash(short_key, &date_str, &raw_code);
+        let short_code_hash = crypto::short_code_hash(&cfg.short_key, &date_str, &raw_code);
+
+        // 4. Kirim email via Mailer (Microsoft Graph API / SMTP / Log)
+        let email_data = VoucherEmailData {
+            staff_name: &staff_name,
+            staff_email: &staff_email,
+            date_str: &date_str,
+            qr_payload: &qr_payload,
+            short_code: &short_code,
+        };
+
+        let email_sent = match mailer::send_voucher_email(cfg, &email_data).await {
+            Ok(_) => true,
+            Err(e) => {
+                tracing::warn!("Gagal kirim email voucher ke {}: {}", staff_email, e);
+                false
+            }
+        };
 
         let ins_sql = r#"
             INSERT INTO vouchers (
                 staff_id, voucher_date, amount, token_hash, short_code_hash,
                 valid_from, valid_until, status, email_sent_at
             )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', now())
+            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', CASE WHEN $7 THEN now() ELSE NULL END)
             RETURNING id
         "#;
 
@@ -122,14 +142,16 @@ pub async fn run_issue_vouchers(
             .bind(&short_code_hash)
             .bind(valid_from)
             .bind(valid_until)
+            .bind(email_sent)
             .fetch_one(pool)
             .await
             .map_err(|e| format!("Gagal insert voucher untuk {}: {}", staff_name, e))?;
 
         issued_count += 1;
+        let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda" };
         details.push(format!(
-            "Voucher #{} [Rp5.000] sukses terbit -> {} ({}) | Kode Cadangan: {}",
-            voucher_id, staff_name, staff_email, short_code
+            "Voucher #{} [Rp5.000] sukses terbit ({}) -> {} ({}) | Kode Cadangan: {}",
+            voucher_id, mail_note, staff_name, staff_email, short_code
         ));
     }
 

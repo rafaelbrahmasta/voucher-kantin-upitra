@@ -9,6 +9,14 @@ pub struct Config {
     pub short_key: Vec<u8>,
     pub dev_tenant_id: i64,
     pub dev_user_id: i64,
+    pub mail_driver: String,
+    pub mail_from: String,
+    pub ms_tenant_id: Option<String>,
+    pub ms_client_id: Option<String>,
+    pub ms_client_secret: Option<String>,
+    pub ms_mail_from: Option<String>,
+    pub smtp_host: Option<String>,
+    pub smtp_port: u16,
 }
 
 impl Config {
@@ -47,6 +55,20 @@ impl Config {
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
 
+        let mail_driver = env::var("MAIL_DRIVER").unwrap_or_else(|_| "log".to_string()).to_lowercase();
+        let mail_from = env::var("MAIL_FROM").unwrap_or_else(|_| "Voucher Kantin UPITRA <voucher@upitra.ac.id>".to_string());
+
+        let ms_tenant_id = env::var("MS_TENANT_ID").ok().filter(|s| !s.trim().is_empty() && s != "your-azure-tenant-id");
+        let ms_client_id = env::var("MS_CLIENT_ID").ok().filter(|s| !s.trim().is_empty() && s != "your-azure-client-id");
+        let ms_client_secret = env::var("MS_CLIENT_SECRET").ok().filter(|s| !s.trim().is_empty() && s != "your-azure-client-secret");
+        let ms_mail_from = env::var("MS_MAIL_FROM").ok().filter(|s| !s.trim().is_empty());
+
+        let smtp_host = env::var("SMTP_HOST").ok().filter(|s| !s.trim().is_empty());
+        let smtp_port = env::var("SMTP_PORT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1025);
+
         Ok(Config {
             env: env_mode,
             addr,
@@ -55,6 +77,14 @@ impl Config {
             short_key: short_str.into_bytes(),
             dev_tenant_id,
             dev_user_id,
+            mail_driver,
+            mail_from,
+            ms_tenant_id,
+            ms_client_id,
+            ms_client_secret,
+            ms_mail_from,
+            smtp_host,
+            smtp_port,
         })
     }
 }
