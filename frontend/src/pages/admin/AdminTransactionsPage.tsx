@@ -11,7 +11,9 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
+  FileDown,
 } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
 import { api } from '../../services/api'
 import { Transaction } from '../../types'
 
@@ -21,6 +23,7 @@ export default function AdminTransactionsPage() {
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
+  const [exporting, setExporting] = useState(false)
 
   // Filter options
   const [units, setUnits] = useState<string[]>([])
@@ -31,6 +34,10 @@ export default function AdminTransactionsPage() {
   const [sampai, setSampai] = useState(todayStr)
   const [selectedTenant, setSelectedTenant] = useState<number>(0)
   const [selectedUnit, setSelectedUnit] = useState<string>('')
+
+  // Deteksi apakah diakses dari /finance (untuk tampilkan tombol export)
+  const location = useLocation()
+  const isFinance = location.pathname.startsWith('/finance')
 
   useEffect(() => {
     loadTransactions(1)
@@ -59,6 +66,28 @@ export default function AdminTransactionsPage() {
     }
   }
 
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+      const params = new URLSearchParams({ dari, sampai })
+      const url = `${apiBase}/api/finance/export?${params.toString()}`
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error('Gagal mengunduh rekap')
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `rekap-voucher-${dari}-sd-${sampai}.csv`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (err) {
+      console.error('Export error', err)
+      alert('Gagal mengunduh file rekap. Silakan coba lagi.')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val)
   }
@@ -77,12 +106,24 @@ export default function AdminTransactionsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => loadTransactions(page)}
-          className="self-start sm:self-auto p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-2 self-start sm:self-auto">
+          {isFinance && (
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="flex items-center gap-2 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm shadow-emerald-600/20 transition-all"
+            >
+              <FileDown className="w-4 h-4" />
+              <span>{exporting ? 'Mengunduh...' : 'Export Excel'}</span>
+            </button>
+          )}
+          <button
+            onClick={() => loadTransactions(page)}
+            className="p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Filter Control Box */}

@@ -11,6 +11,7 @@ import {
   Receipt,
   ArrowUpRight,
   HandCoins,
+  FileDown,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
@@ -19,6 +20,7 @@ export default function FinanceDashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     loadSummary(date)
@@ -33,6 +35,27 @@ export default function FinanceDashboard() {
       console.error('Failed to load finance summary', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleExport = async () => {
+    try {
+      setExporting(true)
+      const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+      const url = `${apiBase}/api/finance/export?dari=${date}&sampai=${date}`
+      const res = await fetch(url, { credentials: 'include' })
+      if (!res.ok) throw new Error('Gagal mengunduh rekap')
+      const blob = await res.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `rekap-voucher-${date}.csv`
+      link.click()
+      URL.revokeObjectURL(link.href)
+    } catch (err) {
+      console.error('Export error', err)
+      alert('Gagal mengunduh file rekap. Silakan coba lagi.')
+    } finally {
+      setExporting(false)
     }
   }
 
@@ -70,6 +93,15 @@ export default function FinanceDashboard() {
             className="p-2.5 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            title="Unduh Rekap Excel (CSV)"
+            className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm shadow-emerald-600/20 transition-all"
+          >
+            <FileDown className="w-4 h-4" />
+            <span className="hidden sm:inline">{exporting ? 'Mengunduh...' : 'Export Excel'}</span>
           </button>
         </div>
       </div>

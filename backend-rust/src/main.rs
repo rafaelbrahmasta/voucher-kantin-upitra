@@ -112,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/summary", get(routes::finance::handle_finance_summary))
         .route("/payouts", get(routes::finance::handle_finance_payouts))
         .route("/transactions", get(routes::admin::handle_transactions))
+        .route("/export", get(routes::finance::handle_finance_export))
         .route_layer(middleware::from_fn_with_state(state.clone(), routes::auth::finance_auth_middleware));
 
     let app = Router::new()
