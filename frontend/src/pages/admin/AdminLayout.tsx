@@ -17,18 +17,13 @@ export default function AdminLayout() {
     try {
       const data = await api.auth.me()
       if (!data.authenticated || data.role !== 'admin') {
-        // Auto-login for seamless dev preview if not yet logged in
-        try {
-          const loginRes = await api.auth.login('admin')
-          setSession({ authenticated: true, role: 'admin', displayName: loginRes.displayName })
-        } catch {
-          navigate('/admin/masuk')
-        }
+        navigate('/admin/masuk')
       } else {
         setSession(data)
       }
     } catch (err) {
       console.error('Auth error', err)
+      navigate('/admin/masuk')
     } finally {
       setLoading(false)
     }

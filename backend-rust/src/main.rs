@@ -121,6 +121,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/auth/me", get(routes::auth::handle_auth_me))
         .route("/api/auth/login", post(routes::auth::handle_auth_login))
         .route("/api/auth/logout", post(routes::auth::handle_auth_logout))
+        // Microsoft OAuth 2.0 SSO
+        .route("/auth/microsoft", get(routes::auth::handle_microsoft_login))
+        .route("/auth/microsoft/callback", get(routes::auth::handle_microsoft_callback))
+        .route("/api/auth/microsoft", get(routes::auth::handle_microsoft_login))
+        .route("/api/auth/microsoft/callback", get(routes::auth::handle_microsoft_callback))
         // Scan / Kasir API
         .route("/api/scan/me", get(routes::scan::handle_scan_me))
         .route("/api/scan/pair", post(routes::scan::handle_scan_pair))

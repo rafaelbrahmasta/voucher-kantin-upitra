@@ -16,19 +16,14 @@ export default function FinanceLayout() {
   const checkAuth = async () => {
     try {
       const data = await api.auth.me()
-      if (!data.authenticated || data.role !== 'finance') {
-        // Auto-login for seamless dev preview if not yet logged in
-        try {
-          const loginRes = await api.auth.login('finance')
-          setSession({ authenticated: true, role: 'finance', displayName: loginRes.displayName })
-        } catch {
-          navigate('/finance/masuk')
-        }
+      if (!data.authenticated || (data.role !== 'finance' && data.role !== 'admin')) {
+        navigate('/finance/masuk')
       } else {
         setSession(data)
       }
     } catch (err) {
       console.error('Auth error', err)
+      navigate('/finance/masuk')
     } finally {
       setLoading(false)
     }

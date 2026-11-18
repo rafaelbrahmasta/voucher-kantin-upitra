@@ -30,7 +30,8 @@ export default function AdminLoginPage() {
   }
 
   const handleMicrosoftLogin = () => {
-    window.location.href = '/auth/microsoft?role=admin'
+    const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+    window.location.href = `${apiBase}/auth/microsoft?role=admin`
   }
 
   return (

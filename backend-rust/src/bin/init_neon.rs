@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Menghubungkan ke database Neon cloud...");
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(neon_url)
+        .connect(&neon_url)
         .await?;
     println!("✅ Berhasil terhubung ke database Neon!");
 
