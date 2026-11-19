@@ -14,6 +14,8 @@ pub struct Staff {
     pub created_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub today_voucher_status: Option<String>,
+    #[serde(default)]
+    pub today_voucher_email_sent: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize)]

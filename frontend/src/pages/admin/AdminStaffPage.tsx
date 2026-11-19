@@ -113,6 +113,21 @@ export default function AdminStaffPage() {
     }
   }
 
+  const [resendingId, setResendingId] = useState<number | null>(null)
+
+  const handleResend = async (id: number, name: string) => {
+    try {
+      setResendingId(id)
+      const res = await api.admin.resendVoucher(id)
+      showToast(res.message || `Voucher untuk ${name} berhasil dibuat ulang dan dikirimkan`)
+      loadStaff(search)
+    } catch (err: any) {
+      alert(err.message || 'Gagal mengirim ulang voucher')
+    } finally {
+      setResendingId(null)
+    }
+  }
+
   const handleToggle = async (id: number) => {
     try {
       await api.admin.toggleStaff(id)
@@ -333,7 +348,7 @@ export default function AdminStaffPage() {
                       )}
                     </td>
 
-                    {/* Status Voucher Hari Ini (T-2: Privasi Terjaga, Kode Rahasia Hanya di Email Penerima) */}
+                    {/* Status Voucher Hari Ini & Tombol Kirim Ulang (Anti-Hilang) */}
                     <td className="py-3.5 px-4 text-center">
                       {staff.today_voucher_status === 'used' ? (
                         <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700">
@@ -341,10 +356,28 @@ export default function AdminStaffPage() {
                           Terpakai di Stan
                         </span>
                       ) : staff.today_voucher_status === 'issued' ? (
-                        <span className="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-sky-700" title="Voucher aktif dan telah dikirimkan ke email Outlook penerima">
-                          <Ticket className="w-3.5 h-3.5 text-sky-600" />
-                          Terkirim ke Email
-                        </span>
+                        <div className="inline-flex items-center gap-1.5">
+                          {staff.today_voucher_email_sent ? (
+                            <span className="inline-flex items-center gap-1 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-sky-700" title="Voucher aktif dan telah dikirimkan ke email Outlook penerima">
+                              <Ticket className="w-3.5 h-3.5 text-sky-600" />
+                              Terkirim ke Email
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700" title="Email belum terkirim. Klik tombol di samping untuk kirim ulang.">
+                              <AlertCircle className="w-3 h-3 text-amber-600" />
+                              Email Tertunda
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleResend(staff.id, staff.name)}
+                            disabled={resendingId === staff.id}
+                            title="Buat ulang token & kirim ulang email voucher"
+                            className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-sky-600 border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${resendingId === staff.id ? 'animate-spin text-sky-600' : ''}`} />
+                          </button>
+                        </div>
                       ) : staff.is_active ? (
                         <span className="text-slate-400 text-xs italic font-medium">Belum Terbit</span>
                       ) : (

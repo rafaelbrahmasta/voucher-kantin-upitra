@@ -1,4 +1,4 @@
-use chrono::{Datelike, FixedOffset, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, Utc};
 use sqlx::{PgPool, Row};
 use crate::config::Config;
 use crate::crypto;
@@ -86,8 +86,8 @@ pub async fn run_issue_vouchers(
         let staff_email: String = s.get("email");
 
         // Cek apakah staf ini sudah memiliki voucher hari ini
-        let existing: Option<(i64,)> = sqlx::query_as(
-            "SELECT id FROM vouchers WHERE staff_id = $1 AND voucher_date = $2"
+        let existing: Option<(i64, Option<DateTime<Utc>>, String)> = sqlx::query_as(
+            "SELECT id, email_sent_at, status::text FROM vouchers WHERE staff_id = $1 AND voucher_date = $2"
         )
         .bind(staff_id)
         .bind(date)
@@ -95,13 +95,25 @@ pub async fn run_issue_vouchers(
         .await
         .map_err(|e| format!("Gagal cek existing voucher: {}", e))?;
 
-        if existing.is_some() {
-            skipped_count += 1;
-            details.push(format!("Lewati: {} ({}) sudah memiliki voucher hari ini", staff_name, staff_email));
-            continue;
-        }
+        let (target_voucher_id, is_retry) = if let Some((vid, email_sent_at, status_str)) = existing {
+            if status_str != "issued" {
+                skipped_count += 1;
+                details.push(format!("Lewati: {} ({}) voucher hari ini berstatus '{}'", staff_name, staff_email, status_str));
+                continue;
+            }
+            // Jika email sudah pernah berhasil terkirim dan tidak ada flag force, lewati
+            if email_sent_at.is_some() && !force {
+                skipped_count += 1;
+                details.push(format!("Lewati: {} ({}) sudah menerima voucher aktif hari ini", staff_name, staff_email));
+                continue;
+            }
+            // Email sebelumnya tertunda/gagal atau mode force: buat ulang token & kirim ulang
+            (vid, true)
+        } else {
+            (0, false)
+        };
 
-        // Generate token kriptografi & kode pendek
+        // Generate token kriptografi & kode pendek baru
         let token = crypto::generate_token();
         let token_hash = crypto::hash_token(&token);
         let qr_payload = crypto::create_qr_payload(&cfg.qr_key, &token);
@@ -110,27 +122,43 @@ pub async fn run_issue_vouchers(
         let raw_code = short_code.replace(['-', ' '], "");
         let short_code_hash = crypto::short_code_hash(&cfg.short_key, &date_str, &raw_code);
 
-        // 4. Simpan voucher ke database TERLEBIH DAHULU (status issued, email_sent_at NULL)
-        // Hanya hash token & hash short_code yang disimpan demi keamanan (T-2)
-        let ins_sql = r#"
-            INSERT INTO vouchers (
-                staff_id, voucher_date, amount, token_hash, short_code_hash,
-                valid_from, valid_until, status, email_sent_at
-            )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
-            RETURNING id
-        "#;
-
-        let voucher_id: i64 = sqlx::query_scalar(ins_sql)
-            .bind(staff_id)
-            .bind(date)
-            .bind(&token_hash)
-            .bind(&short_code_hash)
-            .bind(valid_from)
-            .bind(valid_until)
-            .fetch_one(pool)
-            .await
-            .map_err(|e| format!("Gagal insert voucher untuk {}: {}", staff_name, e))?;
+        // 4. Simpan voucher ke database
+        let voucher_id = if is_retry {
+            let upd_sql = r#"
+                UPDATE vouchers
+                SET token_hash = $1, short_code_hash = $2, valid_from = $3, valid_until = $4, email_sent_at = NULL
+                WHERE id = $5 AND status = 'issued'
+            "#;
+            sqlx::query(upd_sql)
+                .bind(&token_hash)
+                .bind(&short_code_hash)
+                .bind(valid_from)
+                .bind(valid_until)
+                .bind(target_voucher_id)
+                .execute(pool)
+                .await
+                .map_err(|e| format!("Gagal perbarui voucher retry untuk {}: {}", staff_name, e))?;
+            target_voucher_id
+        } else {
+            let ins_sql = r#"
+                INSERT INTO vouchers (
+                    staff_id, voucher_date, amount, token_hash, short_code_hash,
+                    valid_from, valid_until, status, email_sent_at
+                )
+                VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
+                RETURNING id
+            "#;
+            sqlx::query_scalar(ins_sql)
+                .bind(staff_id)
+                .bind(date)
+                .bind(&token_hash)
+                .bind(&short_code_hash)
+                .bind(valid_from)
+                .bind(valid_until)
+                .fetch_one(pool)
+                .await
+                .map_err(|e| format!("Gagal insert voucher untuk {}: {}", staff_name, e))?
+        };
 
         // 5. Kirim email via Mailer (Microsoft Graph API / SMTP / Log)
         let email_data = VoucherEmailData {
@@ -156,10 +184,11 @@ pub async fn run_issue_vouchers(
         };
 
         issued_count += 1;
-        let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda" };
+        let action_tag = if is_retry { "Kirim Ulang" } else { "Terbit" };
+        let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda / Gagal" };
         details.push(format!(
-            "Voucher #{} [Rp5.000] ({}) -> {} ({})",
-            voucher_id, mail_note, staff_name, staff_email
+            "Voucher #{} [Rp5.000] ({}, {}) -> {} ({})",
+            voucher_id, action_tag, mail_note, staff_name, staff_email
         ));
     }
 
@@ -178,3 +207,106 @@ pub async fn run_issue_vouchers(
         details,
     })
 }
+
+// ── Kirim Ulang / Buat Ulang Voucher Tunggal (Anti Kehilangan Voucher) ────
+
+pub async fn resend_single_voucher(
+    pool: &PgPool,
+    cfg: &Config,
+    staff_id: i64,
+) -> Result<String, String> {
+    let wib = FixedOffset::east_opt(7 * 3600).unwrap();
+    let now_wib = Utc::now().with_timezone(&wib);
+    let date = now_wib.date_naive();
+    let date_str = date.to_string();
+
+    // 1. Ambil data staf dan voucher hari ini
+    let q = r#"
+        SELECT v.id AS voucher_id, v.status::text AS status, v.email_sent_at,
+               s.name AS staff_name, s.email AS staff_email
+        FROM vouchers v
+        JOIN staff s ON s.id = v.staff_id
+        WHERE v.staff_id = $1 AND v.voucher_date = $2
+    "#;
+
+    let row = sqlx::query(q)
+        .bind(staff_id)
+        .bind(date)
+        .fetch_optional(pool)
+        .await
+        .map_err(|e| format!("Gagal memeriksa voucher: {}", e))?
+        .ok_or_else(|| "Staf ini belum memiliki voucher yang diterbitkan untuk hari ini.".to_string())?;
+
+    let voucher_id: i64 = row.get("voucher_id");
+    let status: String = row.get("status");
+    let staff_name: String = row.get("staff_name");
+    let staff_email: String = row.get("staff_email");
+
+    if status != "issued" {
+        return Err(format!(
+            "Voucher staf {} sudah berstatus '{}' (misal sudah digunakan di kantin), tidak dapat dibuat ulang.",
+            staff_name, status
+        ));
+    }
+
+    let valid_from = date
+        .and_hms_opt(10, 0, 0)
+        .unwrap()
+        .and_local_timezone(wib)
+        .unwrap()
+        .with_timezone(&Utc);
+    let valid_until = date
+        .and_hms_opt(16, 0, 0)
+        .unwrap()
+        .and_local_timezone(wib)
+        .unwrap()
+        .with_timezone(&Utc);
+
+    // 2. Buat token kriptografi & short code baru
+    let token = crypto::generate_token();
+    let token_hash = crypto::hash_token(&token);
+    let qr_payload = crypto::create_qr_payload(&cfg.qr_key, &token);
+
+    let short_code = crypto::generate_short_code();
+    let raw_code = short_code.replace(['-', ' '], "");
+    let short_code_hash = crypto::short_code_hash(&cfg.short_key, &date_str, &raw_code);
+
+    // 3. Update database dengan hash token yang baru
+    let upd_sql = r#"
+        UPDATE vouchers
+        SET token_hash = $1, short_code_hash = $2, valid_from = $3, valid_until = $4, email_sent_at = NULL
+        WHERE id = $5 AND status = 'issued'
+    "#;
+    sqlx::query(upd_sql)
+        .bind(&token_hash)
+        .bind(&short_code_hash)
+        .bind(valid_from)
+        .bind(valid_until)
+        .bind(voucher_id)
+        .execute(pool)
+        .await
+        .map_err(|e| format!("Gagal memperbarui voucher di database: {}", e))?;
+
+    // 4. Kirim email via Mailer
+    let email_data = VoucherEmailData {
+        staff_name: &staff_name,
+        staff_email: &staff_email,
+        date_str: &date_str,
+        qr_payload: &qr_payload,
+        short_code: &short_code,
+    };
+
+    match mailer::send_voucher_email(cfg, &email_data).await {
+        Ok(_) => {
+            let _ = sqlx::query("UPDATE vouchers SET email_sent_at = now() WHERE id = $1")
+                .bind(voucher_id)
+                .execute(pool)
+                .await;
+            Ok(format!("Voucher baru berhasil dibuat dan dikirimkan ke email {}", staff_email))
+        }
+        Err(e) => {
+            Err(format!("Token voucher baru telah dibuat di database, namun pengiriman email ke {} gagal: {}", staff_email, e))
+        }
+    }
+}
+

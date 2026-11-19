@@ -234,7 +234,35 @@ pub async fn handle_finance_payout_claim(
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database (BEGIN / COMMIT)
+    // Validasi cut-off time: Pencairan hari ini HANYA boleh setelah jam 16:00 WIB (setelah jam tutup voucher)
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let now_wib = chrono::Utc::now().with_timezone(&wib);
+    let today_wib = now_wib.date_naive();
+    let claim_date = chrono::NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d").map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Format tanggal tidak valid. Gunakan YYYY-MM-DD." })),
+        )
+    })?;
+
+    if claim_date > today_wib {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Tidak dapat mencairkan dana untuk tanggal di masa depan." })),
+        ));
+    }
+
+    let closing_time = chrono::NaiveTime::from_hms_opt(16, 0, 0).unwrap();
+    if claim_date == today_wib && now_wib.time() < closing_time {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "Pencairan dana hari ini baru dapat dilakukan setelah jam operasional voucher ditutup (pukul 16:00 WIB). Hal ini untuk memastikan seluruh staf telah selesai bertransaksi dan tidak ada voucher yang tertinggal."
+            })),
+        ));
+    }
+
+    // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database dengan ROW LOCKING
     let mut tx = state.pool.begin().await.map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -242,33 +270,23 @@ pub async fn handle_finance_payout_claim(
         )
     })?;
 
-    // 1. Hitung total voucher dan nominal yang statusnya used untuk stan dan tanggal ini
-    let stat_sql = r#"
-        SELECT count(*) AS count, COALESCE(sum(amount), 0)::bigint AS amount
-        FROM vouchers
-        WHERE used_by_tenant_id = $1
-          AND voucher_date = $2::date
-          AND status = 'used'
-    "#;
-    let stat_row = sqlx::query(stat_sql)
+    // 1. Kunci baris stan di tabel tenants agar serial (anti race condition / klik ganda)
+    let lock_tenant_sql = "SELECT id FROM tenants WHERE id = $1 FOR UPDATE";
+    let tenant_exists: Option<(i64,)> = sqlx::query_as(lock_tenant_sql)
         .bind(payload.tenant_id)
-        .bind(&payload.date)
-        .fetch_one(&mut *tx)
+        .fetch_optional(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
 
-    let count: i64 = stat_row.get("count");
-    let amount: i64 = stat_row.get("amount");
-
-    if count == 0 || amount == 0 {
+    if tenant_exists.is_none() {
         return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Tidak ada transaksi voucher untuk dicairkan pada tanggal ini" })),
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "Stan kantin tidak ditemukan." })),
         ));
     }
 
-    // 2. Cek apakah sudah pernah dicairkan (status = paid) untuk mencegah pencairan ganda
-    let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2::date";
+    // 2. Kunci baris settlement jika ada dan cek apakah sudah lunas (status = paid)
+    let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2::date FOR UPDATE";
     if let Ok(Some(row)) = sqlx::query(check_sql).bind(payload.tenant_id).bind(&payload.date).fetch_optional(&mut *tx).await {
         let status: String = row.get("status");
         if status == "paid" {
@@ -279,12 +297,40 @@ pub async fn handle_finance_payout_claim(
         }
     }
 
-    // 3. Buat catatan di tabel payouts
+    // 3. Kunci seluruh baris voucher yang statusnya used dan belum memiliki settlement_id
+    let lock_vouchers_sql = r#"
+        SELECT id, amount
+        FROM vouchers
+        WHERE used_by_tenant_id = $1
+          AND voucher_date = $2::date
+          AND status = 'used'
+          AND settlement_id IS NULL
+        FOR UPDATE
+    "#;
+    let voucher_rows: Vec<(i64, i32)> = sqlx::query_as(lock_vouchers_sql)
+        .bind(payload.tenant_id)
+        .bind(&payload.date)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    if voucher_rows.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Tidak ada transaksi voucher baru yang belum dicairkan pada tanggal ini" })),
+        ));
+    }
+
+    let count = voucher_rows.len() as i64;
+    let amount: i64 = voucher_rows.iter().map(|(_, a)| *a as i64).sum();
+    let voucher_ids: Vec<i64> = voucher_rows.into_iter().map(|(id, _)| id).collect();
+
+    // 4. Buat catatan di tabel payouts
     let receipt_no = format!("PAY-{}-{}", payload.date.replace("-", ""), payload.tenant_id);
     let ins_payout_sql = r#"
         INSERT INTO payouts (receipt_no, tenant_id, amount, status, created_by)
-        VALUES ($1, $2, $3, 'transferred', $4)
-        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount, status = 'transferred'
+        VALUES ($1, $2, $3, 'transferred'::payout_status, $4)
+        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount, status = 'transferred'::payout_status
         RETURNING id
     "#;
 
@@ -299,7 +345,7 @@ pub async fn handle_finance_payout_claim(
 
     let payout_id: i64 = payout_row.get("id");
 
-    // 4. Upsert ke tabel settlements
+    // 5. Upsert ke tabel settlements
     let upsert_settlement_sql = r#"
         INSERT INTO settlements (tenant_id, business_date, voucher_count, total_amount, status, payout_id, closed_at)
         VALUES ($1, $2::date, $3, $4, 'paid'::settlement_status, $5, now())
@@ -320,18 +366,15 @@ pub async fn handle_finance_payout_claim(
 
     let settlement_id: i64 = settlement_row.get("id");
 
-    // 5. Hubungkan semua voucher terkait ke settlement_id ini
+    // 6. Hubungkan seluruh voucher yang dikunci tadi ke settlement_id ini
     let upd_vouchers_sql = r#"
         UPDATE vouchers
         SET settlement_id = $1
-        WHERE used_by_tenant_id = $2
-          AND voucher_date = $3::date
-          AND status = 'used'
+        WHERE id = ANY($2)
     "#;
     sqlx::query(upd_vouchers_sql)
         .bind(settlement_id)
-        .bind(payload.tenant_id)
-        .bind(&payload.date)
+        .bind(&voucher_ids)
         .execute(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal menghubungkan voucher ke settlement: {}", e) }))))?;

@@ -107,6 +107,32 @@ pub async fn handle_admin_staff_delete(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+pub async fn handle_admin_staff_resend_voucher(
+    State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let msg = crate::issuer::resend_single_voucher(&state.pool, &state.config, id)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e }))))?;
+
+    let user_id = get_admin_user_id(&jar, &state.config.qr_key);
+    let ip = get_ip(&headers);
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        user_id,
+        "VOUCHER_RESENT",
+        None,
+        serde_json::json!({ "staff_id": id }),
+        Some("Pembuatan ulang token dan pengiriman ulang email voucher"),
+        Some(&ip),
+    )
+    .await;
+
+    Ok(Json(serde_json::json!({ "ok": true, "message": msg })))
+}
+
 // ── Admin Tenants CRUD ────────────────────────────────────────────
 
 pub async fn handle_admin_tenants_list(

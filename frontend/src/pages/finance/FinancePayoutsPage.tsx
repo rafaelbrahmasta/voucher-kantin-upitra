@@ -9,6 +9,8 @@ import {
   Printer,
   DollarSign,
   Building,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react'
 import { api } from '../../services/api'
 
@@ -63,6 +65,10 @@ export default function FinancePayoutsPage() {
     window.print()
   }
 
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const isTodayBeforeClosing = date === todayStr && now.getHours() < 16
+
   return (
     <div className="space-y-6">
       {/* Toast Notification */}
@@ -70,6 +76,19 @@ export default function FinancePayoutsPage() {
         <div className="fixed top-20 right-6 z-50 bg-emerald-500/90 border border-emerald-400 text-white px-4 py-3 rounded-xl shadow-2xl backdrop-blur-md flex items-center gap-2.5">
           <CheckCircle2 className="w-5 h-5" />
           <span className="text-xs font-semibold">{successToast}</span>
+        </div>
+      )}
+
+      {/* Warning Banner: Cut-off Waktu Pencairan Jam 16:00 */}
+      {isTodayBeforeClosing && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-3 rounded-2xl flex items-start gap-3 text-xs shadow-xs">
+          <Clock className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold text-amber-950">Pencairan Hari Ini Dibuka Pukul 16:00 WIB</span>
+            <p className="text-[11px] text-amber-800 mt-0.5">
+              Untuk mencegah voucher kasir tertinggal atau terkunci sebelum operasional makan siang berakhir, pencairan kas transaksi hari ini baru dapat diproses setelah pukul 16:00 WIB. Transaksi tanggal kemarin atau sebelumnya dapat dicairkan kapan saja.
+            </p>
+          </div>
         </div>
       )}
 
@@ -226,9 +245,15 @@ export default function FinancePayoutsPage() {
                         ) : (
                           <button
                             onClick={() => handleMarkTransferred(item.id, item.name, item.amount)}
-                            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shadow-sm shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                            disabled={isTodayBeforeClosing}
+                            title={
+                              isTodayBeforeClosing
+                                ? 'Pencairan hari ini baru dibuka setelah pukul 16:00 WIB'
+                                : 'Cairkan kas stan'
+                            }
+                            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shadow-sm shadow-amber-500/20 transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
                           >
-                            Cairkan Kas
+                            {isTodayBeforeClosing ? 'Tunggu 16:00 WIB' : 'Cairkan Kas'}
                           </button>
                         )}
                       </td>

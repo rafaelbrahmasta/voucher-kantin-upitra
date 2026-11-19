@@ -62,6 +62,10 @@ export const api = {
       request<{ ok: boolean }>(`/admin/staff/${id}/toggle`, { method: 'POST' }),
     deleteStaff: (id: number) =>
       request<{ ok: boolean }>(`/admin/staff/${id}`, { method: 'DELETE' }),
+    resendVoucher: (id: number) =>
+      request<{ ok: boolean; message: string }>(`/admin/staff/${id}/resend-voucher`, {
+        method: 'POST',
+      }),
     issueVouchers: (date?: string, force?: boolean) =>
       request<{
         date: string

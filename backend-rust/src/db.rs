@@ -110,7 +110,8 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
         let pattern = format!("%{}%", q_trimmed.to_lowercase());
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
-                   v.status::text AS today_voucher_status
+                   v.status::text AS today_voucher_status,
+                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
             WHERE LOWER(s.name) LIKE $1
@@ -127,7 +128,8 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
     } else {
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
-                   v.status::text AS today_voucher_status
+                   v.status::text AS today_voucher_status,
+                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $1
             ORDER BY s.is_active DESC, s.name ASC

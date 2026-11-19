@@ -85,3 +85,82 @@ async fn test_tamper_evident_audit_log() -> Result<(), Box<dyn std::error::Error
 
     Ok(())
 }
+
+#[tokio::test]
+async fn test_voucher_retry_on_unemailed() -> Result<(), Box<dyn std::error::Error>> {
+    dotenvy::dotenv().ok();
+    let db_url = match std::env::var("DATABASE_URL") {
+        Ok(u) => u,
+        Err(_) => return Ok(()),
+    };
+
+    let pool = PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&db_url)
+        .await?;
+
+    // Verifikasi bahwa jika email_sent_at IS NULL, token_hash dapat diperbarui
+    let test_hash_1 = vec![1u8; 32];
+    let test_hash_2 = vec![2u8; 32];
+    let test_short_1 = vec![3u8; 32];
+    let test_short_2 = vec![4u8; 32];
+
+    let now = chrono::Utc::now();
+    let date = now.date_naive();
+
+    // Pastikan ada staf untuk test
+    let staff_id: i64 = sqlx::query_scalar("SELECT id FROM staff LIMIT 1")
+        .fetch_one(&pool)
+        .await?;
+
+    // Bersihkan voucher test jika ada
+    let _ = sqlx::query("DELETE FROM vouchers WHERE staff_id = $1 AND voucher_date = $2")
+        .bind(staff_id)
+        .bind(date)
+        .execute(&pool)
+        .await;
+
+    // Simpan voucher dengan email_sent_at NULL
+    let v_id: i64 = sqlx::query_scalar(r#"
+        INSERT INTO vouchers (staff_id, voucher_date, amount, token_hash, short_code_hash, valid_from, valid_until, status, email_sent_at)
+        VALUES ($1, $2, 5000, $3, $4, now(), now() + interval '6 hours', 'issued', NULL)
+        RETURNING id
+    "#)
+    .bind(staff_id)
+    .bind(date)
+    .bind(&test_hash_1)
+    .bind(&test_short_1)
+    .fetch_one(&pool)
+    .await?;
+
+    // Lakukan retry pembaruan token
+    let updated = sqlx::query(r#"
+        UPDATE vouchers
+        SET token_hash = $1, short_code_hash = $2
+        WHERE id = $3 AND status = 'issued' AND email_sent_at IS NULL
+    "#)
+    .bind(&test_hash_2)
+    .bind(&test_short_2)
+    .bind(v_id)
+    .execute(&pool)
+    .await?;
+
+    assert_eq!(updated.rows_affected(), 1);
+
+    // Verifikasi hash baru tersimpan
+    let (saved_hash,): (Vec<u8>,) = sqlx::query_as("SELECT token_hash FROM vouchers WHERE id = $1")
+        .bind(v_id)
+        .fetch_one(&pool)
+        .await?;
+
+    assert_eq!(saved_hash, test_hash_2);
+
+    // Bersihkan voucher test
+    let _ = sqlx::query("DELETE FROM vouchers WHERE id = $1")
+        .bind(v_id)
+        .execute(&pool)
+        .await;
+
+    Ok(())
+}
+

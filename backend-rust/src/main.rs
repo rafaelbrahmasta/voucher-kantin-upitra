@@ -128,6 +128,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             get(routes::admin::handle_admin_staff_get).put(routes::admin::handle_admin_staff_update).delete(routes::admin::handle_admin_staff_delete),
         )
         .route("/staff/:id/toggle", post(routes::admin::handle_admin_staff_toggle))
+        .route("/staff/:id/resend-voucher", post(routes::admin::handle_admin_staff_resend_voucher))
         .route(
             "/tenants",
             get(routes::admin::handle_admin_tenants_list).post(routes::admin::handle_admin_tenant_create),
