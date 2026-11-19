@@ -333,35 +333,18 @@ export default function AdminStaffPage() {
                       )}
                     </td>
 
-                    {/* Kode Voucher Hari Ini */}
+                    {/* Status Voucher Hari Ini (T-2: Privasi Terjaga, Kode Rahasia Hanya di Email Penerima) */}
                     <td className="py-3.5 px-4 text-center">
-                      {staff.today_voucher_code ? (
-                        <div className="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-300 px-2.5 py-1 rounded-xl shadow-xs">
-                          <Ticket className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                          <span className="font-mono font-black text-xs text-sky-900 tracking-wider">
-                            {staff.today_voucher_code}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(staff.today_voucher_code || '')
-                              showToast(`Kode voucher ${staff.today_voucher_code} disalin ke clipboard!`)
-                            }}
-                            title="Salin Kode Voucher"
-                            className="p-1 hover:bg-sky-200/60 rounded text-sky-700 transition-colors cursor-pointer"
-                          >
-                            <Copy className="w-3 h-3" />
-                          </button>
-                          {staff.today_voucher_status === 'used' ? (
-                            <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-extrabold uppercase">
-                              Terpakai
-                            </span>
-                          ) : (
-                            <span className="text-[9px] bg-sky-200 text-sky-800 px-1.5 py-0.5 rounded font-bold uppercase">
-                              Aktif
-                            </span>
-                          )}
-                        </div>
+                      {staff.today_voucher_status === 'used' ? (
+                        <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          Terpakai di Stan
+                        </span>
+                      ) : staff.today_voucher_status === 'issued' ? (
+                        <span className="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-sky-700" title="Voucher aktif dan telah dikirimkan ke email Outlook penerima">
+                          <Ticket className="w-3.5 h-3.5 text-sky-600" />
+                          Terkirim ke Email
+                        </span>
                       ) : staff.is_active ? (
                         <span className="text-slate-400 text-xs italic font-medium">Belum Terbit</span>
                       ) : (

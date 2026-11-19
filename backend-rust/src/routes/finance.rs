@@ -208,18 +208,31 @@ pub struct PayoutClaimRequest {
 pub async fn handle_finance_payout_claim(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<PayoutClaimRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     use sqlx::Row;
 
-    // Dapatkan user_id dari sesi finance aktif (mencatat siapa yang sebenarnya mencairkan)
+    // Dapatkan user_id dari sesi finance aktif secara ketat (T-3: Pisahkan IT & hapus fallback user 1)
     let now_unix = chrono::Utc::now().timestamp();
     let current_user_id = jar
         .get("finance_sess")
-        .or_else(|| jar.get("admin_sess"))
         .and_then(|c| crate::crypto::decode_admin_session(&state.config.qr_key, c.value(), now_unix))
+        .filter(|s| s.role == "finance")
         .map(|s| s.user_id)
-        .unwrap_or(1);
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({ "error": "Sesi Biro Keuangan tidak sah atau kedaluwarsa. Silakan login kembali." })),
+            )
+        })?;
+
+    let client_ip = headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "127.0.0.1".to_string());
 
     // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database (BEGIN / COMMIT)
     let mut tx = state.pool.begin().await.map_err(|e| {
@@ -330,6 +343,26 @@ pub async fn handle_finance_payout_claim(
             Json(serde_json::json!({ "error": format!("Gagal menyelesaikan transaksi: {}", e) })),
         )
     })?;
+
+    // 7. Catat jejak audit finansial (T-3)
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        Some(current_user_id),
+        "PAYOUT_CLAIM",
+        None,
+        serde_json::json!({
+            "tenant_id": payload.tenant_id,
+            "business_date": payload.date,
+            "receipt_no": receipt_no,
+            "payout_id": payout_id,
+            "settlement_id": settlement_id,
+            "voucher_count": count,
+            "total_amount": amount,
+        }),
+        Some("Pencairan dana klaim kasir stan kantin"),
+        Some(&client_ip),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({
         "ok": true,

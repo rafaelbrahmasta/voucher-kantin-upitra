@@ -333,4 +333,39 @@ mod tests {
         assert_eq!(decoded.tenant_id, 1);
         assert_eq!(decoded.version, 2);
     }
+
+    #[test]
+    fn test_argon2_password_hashing() {
+        let raw = "RahasiaKuat#2026";
+        let hash = hash_password(raw).expect("Hash must succeed");
+        assert!(hash.starts_with("$argon2"));
+        assert!(verify_password(raw, &hash));
+        assert!(!verify_password("PasswordSalah", &hash));
+        assert!(!verify_password(raw, "plain:RahasiaKuat#2026"));
+    }
 }
+
+// ── Password Hashing (Argon2id) ───────────────────────────────────
+
+pub fn hash_password(password: &str) -> Result<String, String> {
+    use argon2::password_hash::{rand_core::OsRng, PasswordHasher, SaltString};
+    use argon2::Argon2;
+    let salt = SaltString::generate(&mut OsRng);
+    Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map(|h| h.to_string())
+        .map_err(|e| format!("Argon2 hash error: {}", e))
+}
+
+pub fn verify_password(password: &str, hash: &str) -> bool {
+    use argon2::password_hash::{PasswordHash, PasswordVerifier};
+    use argon2::Argon2;
+    if !hash.starts_with("$argon2") {
+        return false;
+    }
+    match PasswordHash::new(hash) {
+        Ok(parsed) => Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok(),
+        Err(_) => false,
+    }
+}
+

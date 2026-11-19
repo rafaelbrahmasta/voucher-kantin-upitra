@@ -111,12 +111,13 @@ pub async fn run_issue_vouchers(
         let short_code_hash = crypto::short_code_hash(&cfg.short_key, &date_str, &raw_code);
 
         // 4. Simpan voucher ke database TERLEBIH DAHULU (status issued, email_sent_at NULL)
+        // Hanya hash token & hash short_code yang disimpan demi keamanan (T-2)
         let ins_sql = r#"
             INSERT INTO vouchers (
-                staff_id, voucher_date, amount, token_hash, short_code_hash, short_code,
+                staff_id, voucher_date, amount, token_hash, short_code_hash,
                 valid_from, valid_until, status, email_sent_at
             )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, $7, 'issued', NULL)
+            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
             RETURNING id
         "#;
 
@@ -125,7 +126,6 @@ pub async fn run_issue_vouchers(
             .bind(date)
             .bind(&token_hash)
             .bind(&short_code_hash)
-            .bind(&short_code)
             .bind(valid_from)
             .bind(valid_until)
             .fetch_one(pool)
@@ -157,14 +157,9 @@ pub async fn run_issue_vouchers(
 
         issued_count += 1;
         let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda" };
-        let code_info = if cfg.mail_driver == "log" || cfg.env == "dev" {
-            format!(" | KODE KASIR: {}", short_code)
-        } else {
-            String::new()
-        };
         details.push(format!(
-            "Voucher #{} [Rp5.000] ({}) -> {} ({}){}",
-            voucher_id, mail_note, staff_name, staff_email, code_info
+            "Voucher #{} [Rp5.000] ({}) -> {} ({})",
+            voucher_id, mail_note, staff_name, staff_email
         ));
     }
 

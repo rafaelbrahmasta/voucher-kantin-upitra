@@ -291,23 +291,17 @@ pub async fn finance_auth_middleware(
     let now_unix = Utc::now().timestamp();
     if let Some(cookie) = jar.get(FINANCE_COOKIE) {
         if let Some(sess) = crypto::decode_admin_session(&state.config.qr_key, cookie.value(), now_unix) {
-            if sess.role == "finance" || sess.role == "admin" {
-                return Ok(next.run(req).await);
-            }
-        }
-    }
-    if let Some(cookie) = jar.get(ADMIN_COOKIE) {
-        if let Some(sess) = crypto::decode_admin_session(&state.config.qr_key, cookie.value(), now_unix) {
-            if sess.role == "admin" {
+            // Pemisahan Tugas (SoD / T-3): Hanya peran "finance" yang diizinkan mengelola keuangan & mencairkan dana. Admin IT tidak diizinkan.
+            if sess.role == "finance" {
                 return Ok(next.run(req).await);
             }
         }
     }
 
     Err((
-        StatusCode::UNAUTHORIZED,
+        StatusCode::FORBIDDEN,
         Json(serde_json::json!({
-            "error": "Akses ditolak: Anda harus login sebagai Biro Keuangan atau Admin terlebih dahulu."
+            "error": "Akses ditolak: Hanya Biro Keuangan yang berwenang mengakses portal keuangan dan pencairan dana kasir."
         })),
     ))
 }

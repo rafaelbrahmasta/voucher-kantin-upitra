@@ -24,14 +24,3 @@ ALTER TABLE users ADD CONSTRAINT users_check CHECK (
 -- Tambah kolom sub_role agar bisa bedakan 'it' vs 'finance' di dalam role 'admin'
 -- (opsional, cukup gunakan role='admin' untuk IT dan role='finance' untuk keuangan)
 
--- Buat akun Admin IT awal (password: admin123 — GANTI SEGERA setelah deploy!)
--- Hash argon2id dari "admin123":
---   $argon2id$v=19$m=65536,t=3,p=4$...
--- Karena kita belum punya argon2 di SQL, kita simpan sebagai plain text sementara
--- dengan prefix khusus 'plain:' yang dikenali handler login.
--- ⚠ HANYA UNTUK DEVELOPMENT — ganti dengan argon2id hash di produksi.
-INSERT INTO users (role, username, password_hash, display_name)
-VALUES
-  ('admin',   'admin.it',      'plain:Admin@IT2025',      'Admin Super IT'),
-  ('finance', 'admin.finance', 'plain:Finance@2025',       'Admin Biro Keuangan')
-ON CONFLICT (username) DO NOTHING;

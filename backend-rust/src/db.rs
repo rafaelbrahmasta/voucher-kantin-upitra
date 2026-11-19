@@ -50,9 +50,16 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS voucher_items_voucher_idx ON voucher_items (voucher_id);").execute(pool).await;
 
-    sqlx::query("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS short_code varchar(20);").execute(pool).await?;
+    // T-2: Hapus kolom short_code dari tabel vouchers demi keamanan (hanya hash yang disimpan)
+    let _ = sqlx::query("ALTER TABLE vouchers DROP COLUMN IF EXISTS short_code;").execute(pool).await;
 
-    // 0003_admin_login DDL (Constraint users fleksibel & akun admin awal)
+    // T-1: Tambah 'transferred' ke tipe enum payout_status
+    let _ = sqlx::query("ALTER TYPE payout_status ADD VALUE IF NOT EXISTS 'transferred';").execute(pool).await;
+
+    // K-1: Hapus akun legacy dengan format password plain:
+    let _ = sqlx::query("DELETE FROM users WHERE password_hash LIKE 'plain:%';").execute(pool).await;
+
+    // 0003_admin_login DDL (Constraint users fleksibel)
     let _ = sqlx::query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_check;").execute(pool).await;
     let _ = sqlx::query(r#"
         ALTER TABLE users ADD CONSTRAINT users_check CHECK (
@@ -68,20 +75,26 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
         );
     "#).execute(pool).await;
 
-    // Tambah akun default Admin Super IT & Biro Keuangan jika belum ada
-    // Password di-hash menggunakan argon2id — TIDAK disimpan plaintext
-    // Hash: Admin@IT2025 dan Finance@2025
-    sqlx::query(r#"
-        INSERT INTO users (role, username, password_hash, display_name)
-        VALUES
-          ('admin',   'admin.it',
-           '$argon2id$v=19$m=19456,t=2,p=1$7ZKKhoYN2o9h8un2UhvZRw$TK5Mbe0QBFI94eAtwsZqCnWGl3FbnljyBQp0A89w0so',
-           'Admin Super IT'),
-          ('finance', 'admin.finance',
-           '$argon2id$v=19$m=19456,t=2,p=1$pW8d8qng3pthcmvJ5GWjfQ$ZK4dI5v9bV8SNJSI8alEXeHTwY1ofggkDANgOUJgE8Y',
-           'Admin Biro Keuangan')
-        ON CONFLICT (username) DO NOTHING;
-    "#).execute(pool).await?;
+    // K-1: Buat admin awal HANYA jika dispesifikasikan via ENV (INIT_ADMIN_PASSWORD) dan belum ada admin
+    if let Ok(init_pass) = std::env::var("INIT_ADMIN_PASSWORD") {
+        let admin_count: (i64,) = sqlx::query_as("SELECT count(*) FROM users WHERE role = 'admin'")
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
+        if admin_count.0 == 0 && init_pass.len() >= 8 {
+            if let Ok(hash) = crate::crypto::hash_password(&init_pass) {
+                let _ = sqlx::query(r#"
+                    INSERT INTO users (role, username, password_hash, display_name, is_active)
+                    VALUES ('admin'::user_role, 'admin.it', $1, 'Admin Super IT', true)
+                    ON CONFLICT (username) DO NOTHING;
+                "#)
+                .bind(hash)
+                .execute(pool)
+                .await;
+                tracing::info!("Akun Admin Super IT awal berhasil diinisialisasi secara aman via INIT_ADMIN_PASSWORD.");
+            }
+        }
+    }
 
     Ok(())
 }
@@ -97,7 +110,6 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
         let pattern = format!("%{}%", q_trimmed.to_lowercase());
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
-                   v.short_code AS today_voucher_code,
                    v.status::text AS today_voucher_status
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
@@ -115,7 +127,6 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
     } else {
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
-                   v.short_code AS today_voucher_code,
                    v.status::text AS today_voucher_status
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $1
@@ -735,8 +746,6 @@ pub async fn verify_user_login(
     identifier: &str,
     password: &str,
 ) -> Result<User, String> {
-    use argon2::{Argon2, PasswordHash, PasswordVerifier};
-
     let id_clean = identifier.trim();
 
     // Tolak username kosong — mencegah login tanpa identifier
@@ -771,24 +780,8 @@ pub async fn verify_user_login(
 
     let hash = u.password_hash.as_deref().unwrap_or("");
 
-    // Verifikasi password dengan argon2 (hash modern) atau plaintext legacy
-    let is_valid = if hash.starts_with("$argon2") {
-        // Gunakan argon2 verify yang sesungguhnya
-        match PasswordHash::new(hash) {
-            Ok(parsed_hash) => Argon2::default()
-                .verify_password(password.as_bytes(), &parsed_hash)
-                .is_ok(),
-            Err(_) => false,
-        }
-    } else if let Some(plain) = hash.strip_prefix("plain:") {
-        // Legacy plaintext — hanya untuk dev/migrasi awal
-        // TODO: Migrasi ke argon2 setelah login pertama
-        plain == password
-    } else {
-        false
-    };
-
-    if !is_valid {
+    // Verifikasi password murni dengan Argon2id — tolak plaintext legacy (K-1)
+    if !crate::crypto::verify_password(password, hash) {
         return Err("Username atau password salah".to_string());
     }
 
@@ -825,3 +818,74 @@ pub async fn get_tenant_today_stats(pool: &PgPool, tenant_id: i64) -> Result<Tod
         total: row.get("total"),
     })
 }
+
+// ── Audit Log (T-3: Jejak Audit Kriptografis / Tamper-Evident) ────
+
+pub async fn write_audit_log(
+    pool: &PgPool,
+    user_id: Option<i64>,
+    action: &str,
+    voucher_id: Option<i64>,
+    detail: serde_json::Value,
+    reason: Option<&str>,
+    ip_str: Option<&str>,
+) -> Result<i64, sqlx::Error> {
+    use sha2::{Digest, Sha256};
+
+    // Ambil row_hash terakhir untuk hash chaining
+    let last_hash_opt: Option<(Vec<u8>,)> = sqlx::query_as(
+        "SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1"
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    let prev_hash = match last_hash_opt {
+        Some((h,)) => h,
+        None => vec![0u8; 32],
+    };
+
+    let now = chrono::Utc::now();
+    let mut hasher = Sha256::new();
+    hasher.update(&prev_hash);
+    hasher.update(action.as_bytes());
+    hasher.update(&user_id.unwrap_or(0).to_le_bytes());
+    hasher.update(&now.timestamp().to_le_bytes());
+    hasher.update(detail.to_string().as_bytes());
+    let row_hash = hasher.finalize().to_vec();
+
+    // Parse IP agar aman disimpan ke tipe inet PostgreSQL (T-3)
+    let valid_ip = ip_str.and_then(|s| {
+        let clean = s.split(':').next().unwrap_or(s).trim();
+        if clean.is_empty() || clean == "localhost" {
+            Some("127.0.0.1")
+        } else if clean.contains('.') || clean.contains(':') {
+            Some(clean)
+        } else {
+            None
+        }
+    });
+
+    let sql = r#"
+        INSERT INTO audit_log (
+            created_at, user_id, action, voucher_id, detail, reason, ip, prev_hash, row_hash
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8, $9)
+        RETURNING id
+    "#;
+
+    let row: (i64,) = sqlx::query_as(sql)
+        .bind(now)
+        .bind(user_id)
+        .bind(action)
+        .bind(voucher_id)
+        .bind(detail)
+        .bind(reason)
+        .bind(valid_ip)
+        .bind(prev_hash)
+        .bind(row_hash)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(row.0)
+}
+

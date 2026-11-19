@@ -1,11 +1,28 @@
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
+use axum_extra::extract::CookieJar;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::models::{MenuItemInput, StaffInput, TenantInput};
 use crate::AppState;
+
+fn get_admin_user_id(jar: &CookieJar, key: &[u8]) -> Option<i64> {
+    let now_unix = chrono::Utc::now().timestamp();
+    jar.get("admin_sess")
+        .and_then(|c| crate::crypto::decode_admin_session(key, c.value(), now_unix))
+        .map(|s| s.user_id)
+}
+
+fn get_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "127.0.0.1".to_string())
+}
 
 // ── Admin Staff CRUD ──────────────────────────────────────────────
 
@@ -115,12 +132,33 @@ pub async fn handle_admin_tenant_create(
 
 pub async fn handle_admin_tenant_update(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    headers: HeaderMap,
     Path(id): Path<i64>,
     Json(payload): Json<TenantInput>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     crate::db::update_tenant(&state.pool, id, &payload)
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    // T-3: Jejak audit saat admin mengubah data rekening / info stan
+    let user_id = get_admin_user_id(&jar, &state.config.qr_key);
+    let ip = get_ip(&headers);
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        user_id,
+        "TENANT_BANK_UPDATE",
+        None,
+        serde_json::json!({
+            "tenant_id": id,
+            "name": payload.name,
+            "bank_name": payload.bank_name,
+            "bank_account": payload.bank_account,
+        }),
+        Some("Pembaruan data stan atau rekening pencairan dana kasir"),
+        Some(&ip),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -138,11 +176,27 @@ pub async fn handle_admin_tenant_delete(
 
 pub async fn handle_admin_tenant_issue_code(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let code = crate::db::issue_pairing_code(&state.pool, id)
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    // T-3: Jejak audit saat kode pairing diterbitkan
+    let user_id = get_admin_user_id(&jar, &state.config.qr_key);
+    let ip = get_ip(&headers);
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        user_id,
+        "TENANT_PAIRING_CODE_ISSUED",
+        None,
+        serde_json::json!({ "tenant_id": id }),
+        Some("Penerbitan kode aktivasi pairing kasir"),
+        Some(&ip),
+    )
+    .await;
 
     let formatted = crate::crypto::format_pairing_code(&code);
     Ok(Json(serde_json::json!({ "ok": true, "code": formatted })))
@@ -150,11 +204,27 @@ pub async fn handle_admin_tenant_issue_code(
 
 pub async fn handle_admin_tenant_revoke(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     crate::db::revoke_devices(&state.pool, id)
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    // T-3: Jejak audit saat seluruh perangkat kasir dicabut
+    let user_id = get_admin_user_id(&jar, &state.config.qr_key);
+    let ip = get_ip(&headers);
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        user_id,
+        "TENANT_DEVICES_REVOKED",
+        None,
+        serde_json::json!({ "tenant_id": id }),
+        Some("Pencabutan seluruh perangkat aktif kasir stan"),
+        Some(&ip),
+    )
+    .await;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -381,6 +451,8 @@ pub struct IssueVoucherQuery {
 
 pub async fn handle_admin_issue_vouchers(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
+    headers: HeaderMap,
     Json(payload): Json<Option<IssueVoucherQuery>>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let target_date = payload
@@ -397,6 +469,26 @@ pub async fn handle_admin_issue_vouchers(
     )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e }))))?;
+
+    // T-3: Jejak audit penerbitan voucher harian oleh Admin IT
+    let user_id = get_admin_user_id(&jar, &state.config.qr_key);
+    let ip = get_ip(&headers);
+    let _ = crate::db::write_audit_log(
+        &state.pool,
+        user_id,
+        "VOUCHERS_ISSUED",
+        None,
+        serde_json::json!({
+            "target_date": target_date.map(|d| d.to_string()),
+            "force": force,
+            "issued": summary.issued_count,
+            "skipped": summary.skipped_count,
+            "total": summary.total_staff,
+        }),
+        Some("Penerbitan voucher harian dosen & staf"),
+        Some(&ip),
+    )
+    .await;
 
     Ok(Json(serde_json::to_value(summary).unwrap()))
 }

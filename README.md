@@ -39,15 +39,26 @@ voucher-kantin/
 
 ---
 
-## 🔐 Kredensial Login Pengguna
+## 🔐 Manajemen Pengguna & Keamanan Kredensial
 
-Sistem dilengkapi proteksi autentikasi sandi & middleware sesi:
+Demi keamanan dan kepatuhan audit (mencegah kredensial default publik dan kata sandi plaintext), seluruh akun administrasi menggunakan enkripsi hashing **Argon2id** dan dapat diinisialisasi secara aman via CLI:
 
-| Peran | URL Portal | Akun Default | Kata Sandi Default |
+### Membuat Akun Admin / Keuangan (CLI Aman):
+Jalankan perintah berikut di folder `backend-rust`:
+```bash
+# Membuat Akun Admin Super IT:
+cargo run --bin create_user -- admin admin.it "Admin Super IT" "KataSandiKuat#2026"
+
+# Membuat Akun Biro Keuangan:
+cargo run --bin create_user -- finance admin.finance "Biro Keuangan UPITRA" "KataSandiKeuangan#2026"
+```
+
+| Peran | URL Portal | Metode Masuk | Keterangan |
 |---|---|---|---|
-| **Admin Super IT** | `http://localhost:8080/admin/masuk` | `admin.it` | `Admin@IT2025` |
-| **Biro Keuangan** | `http://localhost:8080/finance/masuk` | `admin.finance` | `Finance@2025` |
+| **Admin Super IT** | `http://localhost:8080/admin/masuk` | Username + Password (Argon2id) / Microsoft SSO | Dibuat melalui CLI aman `create_user` |
+| **Biro Keuangan** | `http://localhost:8080/finance/masuk` | Username + Password (Argon2id) / Microsoft SSO | Dibuat melalui CLI aman `create_user` |
 | **Kasir Stan** | `http://localhost:8080/scan/masuk` | *Kode Pairing 10 Karakter* | Didapat dari tombol **"Kode Pairing"** di menu Stan Admin IT |
+
 
 ---
 

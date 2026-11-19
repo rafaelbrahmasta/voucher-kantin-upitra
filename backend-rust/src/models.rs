@@ -13,8 +13,6 @@ pub struct Staff {
     pub is_active: bool,
     pub created_at: Option<DateTime<Utc>>,
     #[serde(default)]
-    pub today_voucher_code: Option<String>,
-    #[serde(default)]
     pub today_voucher_status: Option<String>,
 }
 
