@@ -65,6 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config: cfg.clone(),
         rate_limiter_code: RateLimiter::new(8, 60), // Maksimal 8 percobaan salah per menit
         rate_limiter_pair: RateLimiter::new(8, 60), // Maksimal 8 percobaan pairing salah per menit
+        rate_limiter_login: RateLimiter::new(5, 60), // Maksimal 5 percobaan login salah per menit
     });
 
     // CORS: Whitelist eksplisit — TIDAK mirror_request + allow_credentials

@@ -231,9 +231,9 @@ pub async fn get_tenant(pool: &PgPool, id: i64) -> Result<Option<Tenant>, sqlx::
 }
 
 pub async fn create_tenant(pool: &PgPool, in_data: &TenantInput) -> Result<i64, sqlx::Error> {
-    let stall_val = if in_data.stall.trim().is_empty() { None } else { Some(in_data.stall.trim()) };
-    let bank_name_val = if in_data.bank_name.trim().is_empty() { None } else { Some(in_data.bank_name.trim()) };
-    let bank_account_val = if in_data.bank_account.trim().is_empty() { None } else { Some(in_data.bank_account.trim()) };
+    let stall_val = in_data.stall.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let bank_name_val = in_data.bank_name.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let bank_account_val = in_data.bank_account.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
 
     let sql = r#"
         WITH t AS (
@@ -260,9 +260,9 @@ pub async fn create_tenant(pool: &PgPool, in_data: &TenantInput) -> Result<i64, 
 }
 
 pub async fn update_tenant(pool: &PgPool, id: i64, in_data: &TenantInput) -> Result<(), sqlx::Error> {
-    let stall_val = if in_data.stall.trim().is_empty() { None } else { Some(in_data.stall.trim()) };
-    let bank_name_val = if in_data.bank_name.trim().is_empty() { None } else { Some(in_data.bank_name.trim()) };
-    let bank_account_val = if in_data.bank_account.trim().is_empty() { None } else { Some(in_data.bank_account.trim()) };
+    let stall_val = in_data.stall.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let bank_name_val = in_data.bank_name.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    let bank_account_val = in_data.bank_account.as_deref().map(|s| s.trim()).filter(|s| !s.is_empty());
 
     let sql = r#"
         UPDATE tenants

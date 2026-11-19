@@ -2,6 +2,7 @@ use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::Json;
+use axum_extra::extract::cookie::CookieJar;
 use chrono::Datelike;
 use std::sync::Arc;
 use crate::routes::admin::DateQuery;
@@ -52,7 +53,7 @@ pub async fn handle_finance_summary(
     let budget_void = void * 5000_i64;
 
     let per_tenant_sql = r#"
-        SELECT t.name, count(v.id) AS count, COALESCE(sum(v.amount), 0) AS amount
+        SELECT t.name, count(v.id) AS count, COALESCE(sum(v.amount), 0)::bigint AS amount
         FROM tenants t
         LEFT JOIN vouchers v ON v.used_by_tenant_id = t.id AND v.voucher_date = $1::date AND v.status = 'used'
         WHERE t.is_active
@@ -80,7 +81,7 @@ pub async fn handle_finance_summary(
     // Transaksi terbaru hari ini (5 terakhir)
     let recent_sql = r#"
         SELECT s.name AS staff, s.unit, COALESCE(t.name, '-') AS kantin,
-               v.amount, v.used_at
+               v.amount::bigint AS amount, v.used_at
         FROM vouchers v
         JOIN staff s ON s.id = v.staff_id
         LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
@@ -144,7 +145,7 @@ pub async fn handle_finance_payouts(
                COALESCE(t.bank_account, '-') AS bank_account,
                t.is_active AS active,
                count(v.id) AS count,
-               COALESCE(sum(v.amount), 0) AS amount,
+               COALESCE(sum(v.amount), 0)::bigint AS amount,
                COALESCE(s.status = 'paid', false) AS transferred
         FROM tenants t
         LEFT JOIN vouchers v ON v.used_by_tenant_id = t.id AND v.voucher_date = $1::date AND v.status = 'used'
@@ -206,13 +207,31 @@ pub struct PayoutClaimRequest {
 
 pub async fn handle_finance_payout_claim(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
     Json(payload): Json<PayoutClaimRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     use sqlx::Row;
 
+    // Dapatkan user_id dari sesi finance aktif (mencatat siapa yang sebenarnya mencairkan)
+    let now_unix = chrono::Utc::now().timestamp();
+    let current_user_id = jar
+        .get("finance_sess")
+        .or_else(|| jar.get("admin_sess"))
+        .and_then(|c| crate::crypto::decode_admin_session(&state.config.qr_key, c.value(), now_unix))
+        .map(|s| s.user_id)
+        .unwrap_or(1);
+
+    // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database (BEGIN / COMMIT)
+    let mut tx = state.pool.begin().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Gagal memulai transaksi database: {}", e) })),
+        )
+    })?;
+
     // 1. Hitung total voucher dan nominal yang statusnya used untuk stan dan tanggal ini
     let stat_sql = r#"
-        SELECT count(*) AS count, COALESCE(sum(amount), 0) AS amount
+        SELECT count(*) AS count, COALESCE(sum(amount), 0)::bigint AS amount
         FROM vouchers
         WHERE used_by_tenant_id = $1
           AND voucher_date = $2::date
@@ -221,7 +240,7 @@ pub async fn handle_finance_payout_claim(
     let stat_row = sqlx::query(stat_sql)
         .bind(payload.tenant_id)
         .bind(&payload.date)
-        .fetch_one(&state.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
 
@@ -237,7 +256,7 @@ pub async fn handle_finance_payout_claim(
 
     // 2. Cek apakah sudah pernah dicairkan (status = paid) untuk mencegah pencairan ganda
     let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2::date";
-    if let Ok(Some(row)) = sqlx::query(check_sql).bind(payload.tenant_id).bind(&payload.date).fetch_optional(&state.pool).await {
+    if let Ok(Some(row)) = sqlx::query(check_sql).bind(payload.tenant_id).bind(&payload.date).fetch_optional(&mut *tx).await {
         let status: String = row.get("status");
         if status == "paid" {
             return Err((
@@ -251,8 +270,8 @@ pub async fn handle_finance_payout_claim(
     let receipt_no = format!("PAY-{}-{}", payload.date.replace("-", ""), payload.tenant_id);
     let ins_payout_sql = r#"
         INSERT INTO payouts (receipt_no, tenant_id, amount, status, created_by)
-        VALUES ($1, $2, $3, 'pending', 1)
-        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount
+        VALUES ($1, $2, $3, 'transferred', $4)
+        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount, status = 'transferred'
         RETURNING id
     "#;
 
@@ -260,7 +279,8 @@ pub async fn handle_finance_payout_claim(
         .bind(&receipt_no)
         .bind(payload.tenant_id)
         .bind(amount as i32)
-        .fetch_one(&state.pool)
+        .bind(current_user_id)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat payout: {}", e) }))))?;
 
@@ -281,7 +301,7 @@ pub async fn handle_finance_payout_claim(
         .bind(count as i32)
         .bind(amount as i32)
         .bind(payout_id)
-        .fetch_one(&state.pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat settlement: {}", e) }))))?;
 
@@ -295,12 +315,21 @@ pub async fn handle_finance_payout_claim(
           AND voucher_date = $3::date
           AND status = 'used'
     "#;
-    let _ = sqlx::query(upd_vouchers_sql)
+    sqlx::query(upd_vouchers_sql)
         .bind(settlement_id)
         .bind(payload.tenant_id)
         .bind(&payload.date)
-        .execute(&state.pool)
-        .await;
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal menghubungkan voucher ke settlement: {}", e) }))))?;
+
+    // 6. Selesaikan transaksi (COMMIT)
+    tx.commit().await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({ "error": format!("Gagal menyelesaikan transaksi: {}", e) })),
+        )
+    })?;
 
     Ok(Json(serde_json::json!({
         "ok": true,

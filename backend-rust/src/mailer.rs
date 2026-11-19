@@ -246,18 +246,36 @@ async fn send_via_smtp(
         .map_err(|e| format!("Gagal terhubung ke SMTP server {}: {}", target, e))?;
 
     let mut buf = [0u8; 1024];
-    let _ = stream.read(&mut buf).await;
+    let n = stream.read(&mut buf).await.map_err(|e| format!("Gagal membaca banner SMTP: {}", e))?;
+    let banner = String::from_utf8_lossy(&buf[..n]);
+    if banner.starts_with('4') || banner.starts_with('5') {
+        return Err(format!("SMTP server menolak koneksi: {}", banner.trim()));
+    }
 
-    // Helper kirim perintah SMTP
-    async fn send_cmd(stream: &mut TcpStream, cmd: &str) -> Result<(), String> {
+    // Helper kirim perintah SMTP dengan pengecekan kode balasan server
+    async fn send_cmd(stream: &mut TcpStream, cmd: &str) -> Result<String, String> {
         stream.write_all(cmd.as_bytes()).await.map_err(|e| e.to_string())?;
         let mut b = [0u8; 1024];
-        let _ = stream.read(&mut b).await;
-        Ok(())
+        let n = stream.read(&mut b).await.map_err(|e| e.to_string())?;
+        let res = String::from_utf8_lossy(&b[..n]).to_string();
+        if res.starts_with('4') || res.starts_with('5') {
+            return Err(format!("SMTP error pada '{}': {}", cmd.trim(), res.trim()));
+        }
+        Ok(res)
     }
 
     send_cmd(&mut stream, "HELO localhost\r\n").await?;
-    send_cmd(&mut stream, "MAIL FROM:<voucher@upitra.ac.id>\r\n").await?;
+
+    // Jika kredensial SMTP tersedia, lakukan AUTH LOGIN
+    if let (Some(ref user), Some(ref pass)) = (&cfg.smtp_user, &cfg.smtp_pass) {
+        if !user.is_empty() && !pass.is_empty() {
+            send_cmd(&mut stream, "AUTH LOGIN\r\n").await?;
+            send_cmd(&mut stream, &format!("{}\r\n", B64_STD.encode(user.as_bytes()))).await?;
+            send_cmd(&mut stream, &format!("{}\r\n", B64_STD.encode(pass.as_bytes()))).await?;
+        }
+    }
+
+    send_cmd(&mut stream, &format!("MAIL FROM:<{}>\r\n", cfg.mail_from)).await?;
     send_cmd(&mut stream, &format!("RCPT TO:<{}>\r\n", data.staff_email)).await?;
     send_cmd(&mut stream, "DATA\r\n").await?;
 
@@ -291,8 +309,12 @@ async fn send_via_smtp(
     );
 
     stream.write_all(raw_email.as_bytes()).await.map_err(|e| e.to_string())?;
-    let _ = stream.read(&mut buf).await;
-    send_cmd(&mut stream, "QUIT\r\n").await?;
+    let n = stream.read(&mut buf).await.map_err(|e| e.to_string())?;
+    let data_res = String::from_utf8_lossy(&buf[..n]);
+    if data_res.starts_with('4') || data_res.starts_with('5') {
+        return Err(format!("SMTP error setelah pengiriman DATA: {}", data_res.trim()));
+    }
+    let _ = send_cmd(&mut stream, "QUIT\r\n").await;
 
     tracing::info!(
         "✅ [SMTP/Mailpit] Email voucher sukses dikirim ke {} ({})",

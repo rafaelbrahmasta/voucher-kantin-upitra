@@ -54,6 +54,21 @@ fn make_clear_cookie<'c>(name: &'c str, is_https: bool) -> Cookie<'c> {
     }
 }
 
+fn get_client_ip(headers: &axum::http::HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            headers
+                .get("x-real-ip")
+                .and_then(|v| v.to_str().ok())
+                .map(|s| s.trim().to_string())
+        })
+        .unwrap_or_else(|| "127.0.0.1".to_string())
+}
+
 const ADMIN_COOKIE: &str = "admin_sess";
 const FINANCE_COOKIE: &str = "finance_sess";
 const TENANT_COOKIE: &str = "tenant_sess";
@@ -160,6 +175,7 @@ pub struct LoginResponse {
 pub async fn handle_auth_login(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<LoginRequest>,
 ) -> Result<(CookieJar, Json<LoginResponse>), (StatusCode, Json<LoginResponse>)> {
     let role = payload.role.as_str();
@@ -178,10 +194,28 @@ pub async fn handle_auth_login(
     let identifier = payload.email.as_deref().unwrap_or("").trim();
     let password = payload.password.as_deref().unwrap_or("").trim();
 
+    let client_ip = get_client_ip(&headers);
+    let rate_key = format!("{}:{}", client_ip, identifier);
+    if state.rate_limiter_login.is_blocked(&rate_key).await {
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(LoginResponse {
+                ok: false,
+                role: payload.role,
+                display_name: String::new(),
+                error: Some("Terlalu banyak percobaan login salah. Silakan tunggu 1 menit.".to_string()),
+            }),
+        ));
+    }
+
     // Verifikasi kredensial ke database
     let user = match crate::db::verify_user_login(&state.pool, role, identifier, password).await {
-        Ok(u) => u,
+        Ok(u) => {
+            state.rate_limiter_login.reset(&rate_key).await;
+            u
+        }
         Err(err_msg) => {
+            state.rate_limiter_login.record_failure(&rate_key).await;
             return Err((
                 StatusCode::UNAUTHORIZED,
                 Json(LoginResponse {
@@ -298,9 +332,10 @@ pub struct MicrosoftLoginQuery {
 
 pub async fn handle_microsoft_login(
     State(state): State<Arc<AppState>>,
+    jar: CookieJar,
     Query(query): Query<MicrosoftLoginQuery>,
     req: axum::extract::Request,
-) -> Result<axum::response::Redirect, (StatusCode, String)> {
+) -> Result<(CookieJar, axum::response::Redirect), (StatusCode, String)> {
     let tenant_id = state
         .config
         .ms_tenant_id
@@ -316,6 +351,8 @@ pub async fn handle_microsoft_login(
         ))?;
 
     let role = query.role.as_deref().unwrap_or("finance");
+    let nonce = crypto::generate_token();
+    let state_param = format!("{}:{}", role, nonce);
 
     let host = req
         .headers()
@@ -344,9 +381,28 @@ pub async fn handle_microsoft_login(
         .append_pair("redirect_uri", &redirect_uri)
         .append_pair("response_mode", "query")
         .append_pair("scope", "openid profile email User.Read")
-        .append_pair("state", role);
+        .append_pair("state", &state_param);
 
-    Ok(axum::response::Redirect::temporary(auth_url.as_str()))
+    let is_https = proto == "https";
+    let state_cookie = if is_https {
+        Cookie::build(("oauth_state", state_param))
+            .path("/")
+            .http_only(true)
+            .max_age(Duration::seconds(600))
+            .same_site(SameSite::None)
+            .secure(true)
+            .build()
+    } else {
+        Cookie::build(("oauth_state", state_param))
+            .path("/")
+            .http_only(true)
+            .max_age(Duration::seconds(600))
+            .same_site(SameSite::Lax)
+            .secure(false)
+            .build()
+    };
+
+    Ok((jar.add(state_cookie), axum::response::Redirect::temporary(auth_url.as_str())))
 }
 
 #[derive(Deserialize)]
@@ -375,7 +431,16 @@ pub async fn handle_microsoft_callback(
         StatusCode::BAD_REQUEST,
         "Parameter authorization code dari Microsoft tidak ditemukan".to_string(),
     ))?;
-    let role = query.state.as_deref().unwrap_or("finance");
+
+    // Validasi CSRF state token
+    let query_state = query.state.as_deref().unwrap_or("");
+    let expected_state = jar.get("oauth_state").map(|c| c.value()).unwrap_or("");
+    if expected_state.is_empty() || query_state != expected_state {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Sesi login Microsoft tidak valid atau CSRF token kedaluwarsa. Silakan ulangi login.".to_string(),
+        ));
+    }
 
     let tenant_id = state
         .config
@@ -522,41 +587,43 @@ pub async fn handle_microsoft_callback(
         }
     }
 
-    // 3. Cocokkan ke database berdasarkan EMAIL (bukan LIMIT 1 acak)
-    let db_user: Option<(i64, String)> = sqlx::query_as(
-        "SELECT id, display_name FROM users WHERE role::text = $1 AND LOWER(username) = LOWER($2) AND is_active = true LIMIT 1"
+    // 3. Cocokkan ke database berdasarkan EMAIL atau username (Hanya yang terdaftar di database)
+    let db_user: Option<(i64, String, String)> = sqlx::query_as(
+        r#"
+        SELECT id, role::text AS role, display_name
+        FROM users
+        WHERE (
+            LOWER(username) = LOWER($1)
+            OR LOWER(username) = LOWER(SPLIT_PART($1, '@', 1))
+        )
+        AND is_active = true
+        LIMIT 1
+        "#
     )
-    .bind(role)
     .bind(&ms_email)
     .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
-    // Fallback: ambil user pertama sesuai role jika email belum terdaftar
-    let db_user = if db_user.is_none() {
-        sqlx::query_as::<_, (i64, String)>(
-            "SELECT id, display_name FROM users WHERE role::text = $1 AND is_active = true ORDER BY id ASC LIMIT 1"
-        )
-        .bind(role)
-        .fetch_optional(&state.pool)
-        .await
-        .unwrap_or(None)
-    } else {
-        db_user
-    };
-
-    let (user_id, final_display_name) = match db_user {
-        Some((id, name)) => (id, name),
+    let (user_id, role, final_display_name) = match db_user {
+        Some((id, r, name)) => (id, r, name),
         None => {
             return Err((
                 StatusCode::FORBIDDEN,
                 format!(
-                    "Akses ditolak: Tidak ada akun {} aktif di sistem. Hubungi Admin IT.",
-                    role
+                    "Akses ditolak: Akun Microsoft '{}' tidak terdaftar sebagai staf resmi di sistem voucher. Hubungi Admin IT untuk didaftarkan.",
+                    ms_email
                 ),
             ));
         }
     };
+
+    if role != "admin" && role != "finance" {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "Akses ditolak: Peran akun Anda tidak memiliki izin akses portal web.".to_string(),
+        ));
+    }
 
     // 4. Terbitkan Sesi Cookie
     let now = Utc::now();
@@ -576,7 +643,8 @@ pub async fn handle_microsoft_callback(
     let is_https = proto == "https";
     let updated_jar = jar
         .add(make_auth_cookie(cookie_name, token, is_https))
-        .add(make_clear_cookie(opposing_cookie, is_https));
+        .add(make_clear_cookie(opposing_cookie, is_https))
+        .add(make_clear_cookie("oauth_state", is_https));
 
     let target_page = if role == "admin" { "/admin" } else { "/finance" };
     Ok((updated_jar, axum::response::Redirect::temporary(target_page)))

@@ -36,6 +36,7 @@ pub struct Tenant {
     pub name: String,
     #[serde(rename = "stall")]
     pub stall_location: Option<String>,
+    #[serde(rename = "owner")]
     pub owner_name: String,
     pub bank_name: Option<String>,
     pub bank_account: Option<String>,
@@ -49,10 +50,13 @@ pub struct Tenant {
 #[derive(Clone, Debug, Deserialize)]
 pub struct TenantInput {
     pub name: String,
-    pub stall: String,
+    #[serde(default)]
+    pub stall: Option<String>,
     pub owner: String,
-    pub bank_name: String,
-    pub bank_account: String,
+    #[serde(default)]
+    pub bank_name: Option<String>,
+    #[serde(default)]
+    pub bank_account: Option<String>,
     #[serde(default = "default_true")]
     pub active: bool,
 }

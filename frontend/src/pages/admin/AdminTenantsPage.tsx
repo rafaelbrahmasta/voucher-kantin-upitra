@@ -73,12 +73,12 @@ export default function AdminTenantsPage() {
     if (tenant) {
       setEditingTenant(tenant)
       setFormData({
-        name: tenant.name,
-        stall: tenant.stall,
-        owner: tenant.owner,
-        bank_name: tenant.bank_name,
-        bank_account: tenant.bank_account,
-        active: tenant.active,
+        name: tenant.name || '',
+        stall: tenant.stall || '',
+        owner: tenant.owner || '',
+        bank_name: tenant.bank_name || '',
+        bank_account: tenant.bank_account || '',
+        active: tenant.active ?? true,
       })
     } else {
       setEditingTenant(null)

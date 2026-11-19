@@ -14,4 +14,5 @@ pub struct AppState {
     pub config: config::Config,
     pub rate_limiter_code: rate_limit::RateLimiter,
     pub rate_limiter_pair: rate_limit::RateLimiter,
+    pub rate_limiter_login: rate_limit::RateLimiter,
 }

@@ -1,4 +1,4 @@
-use chrono::{Datelike, FixedOffset, Local, NaiveDate, Utc};
+use chrono::{Datelike, FixedOffset, NaiveDate, Utc};
 use sqlx::{PgPool, Row};
 use crate::config::Config;
 use crate::crypto;
@@ -21,7 +21,8 @@ pub async fn run_issue_vouchers(
     target_date: Option<NaiveDate>,
     force: bool,
 ) -> Result<IssueSummary, String> {
-    let date = target_date.unwrap_or_else(|| Local::now().date_naive());
+    let wib = FixedOffset::east_opt(7 * 3600).unwrap();
+    let date = target_date.unwrap_or_else(|| Utc::now().with_timezone(&wib).date_naive());
     let date_str = date.format("%Y-%m-%d").to_string();
 
     // 1. Cek apakah akhir pekan (Sabtu / Minggu)
@@ -109,29 +110,13 @@ pub async fn run_issue_vouchers(
         let raw_code = short_code.replace(['-', ' '], "");
         let short_code_hash = crypto::short_code_hash(&cfg.short_key, &date_str, &raw_code);
 
-        // 4. Kirim email via Mailer (Microsoft Graph API / SMTP / Log)
-        let email_data = VoucherEmailData {
-            staff_name: &staff_name,
-            staff_email: &staff_email,
-            date_str: &date_str,
-            qr_payload: &qr_payload,
-            short_code: &short_code,
-        };
-
-        let email_sent = match mailer::send_voucher_email(cfg, &email_data).await {
-            Ok(_) => true,
-            Err(e) => {
-                tracing::warn!("Gagal kirim email voucher ke {}: {}", staff_email, e);
-                false
-            }
-        };
-
+        // 4. Simpan voucher ke database TERLEBIH DAHULU (status issued, email_sent_at NULL)
         let ins_sql = r#"
             INSERT INTO vouchers (
                 staff_id, voucher_date, amount, token_hash, short_code_hash,
                 valid_from, valid_until, status, email_sent_at
             )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', CASE WHEN $7 THEN now() ELSE NULL END)
+            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
             RETURNING id
         "#;
 
@@ -142,16 +127,38 @@ pub async fn run_issue_vouchers(
             .bind(&short_code_hash)
             .bind(valid_from)
             .bind(valid_until)
-            .bind(email_sent)
             .fetch_one(pool)
             .await
             .map_err(|e| format!("Gagal insert voucher untuk {}: {}", staff_name, e))?;
 
+        // 5. Kirim email via Mailer (Microsoft Graph API / SMTP / Log)
+        let email_data = VoucherEmailData {
+            staff_name: &staff_name,
+            staff_email: &staff_email,
+            date_str: &date_str,
+            qr_payload: &qr_payload,
+            short_code: &short_code,
+        };
+
+        let email_sent = match mailer::send_voucher_email(cfg, &email_data).await {
+            Ok(_) => {
+                let _ = sqlx::query("UPDATE vouchers SET email_sent_at = now() WHERE id = $1")
+                    .bind(voucher_id)
+                    .execute(pool)
+                    .await;
+                true
+            }
+            Err(e) => {
+                tracing::warn!("Gagal kirim email voucher ke {}: {}", staff_email, e);
+                false
+            }
+        };
+
         issued_count += 1;
         let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda" };
         details.push(format!(
-            "Voucher #{} [Rp5.000] sukses terbit ({}) -> {} ({}) | Kode Cadangan: {}",
-            voucher_id, mail_note, staff_name, staff_email, short_code
+            "Voucher #{} [Rp5.000] sukses terbit ({}) -> {} ({})",
+            voucher_id, mail_note, staff_name, staff_email
         ));
     }
 

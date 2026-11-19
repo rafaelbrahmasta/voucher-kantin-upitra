@@ -5,8 +5,8 @@ import { api } from '../../services/api'
 
 export default function AdminLoginPage() {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('admin.it')
-  const [password, setPassword] = useState('Admin@IT2025')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -97,17 +97,6 @@ export default function AdminLoginPage() {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500 transition-all font-mono"
               />
             </div>
-          </div>
-
-          <div className="p-3 bg-sky-50/70 border border-sky-100 rounded-xl text-[11px] text-sky-800 flex items-center justify-between">
-            <span>Kredensial Dev: <strong className="font-mono">admin.it</strong> / <strong className="font-mono">Admin@IT2025</strong></span>
-            <button
-              type="button"
-              onClick={() => { setUsername('admin.it'); setPassword('Admin@IT2025') }}
-              className="text-xs font-bold text-sky-600 hover:text-sky-800 underline"
-            >
-              Isi Otomatis
-            </button>
           </div>
 
           <button

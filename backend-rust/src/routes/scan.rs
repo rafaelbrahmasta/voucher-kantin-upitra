@@ -82,7 +82,7 @@ pub async fn handle_scan_pair(
     Json(payload): Json<PairRequest>,
 ) -> Result<(CookieJar, Json<PairResponse>), (StatusCode, Json<PairResponse>)> {
     let client_ip = get_client_ip(&headers);
-    if !state.rate_limiter_pair.check(&client_ip).await {
+    if state.rate_limiter_pair.is_blocked(&client_ip).await {
         return Err((
             StatusCode::TOO_MANY_REQUESTS,
             Json(PairResponse {
@@ -114,6 +114,7 @@ pub async fn handle_scan_pair(
     let redeemed = crate::db::redeem_pairing_code(&state.pool, &raw_code).await;
     match redeemed {
         Ok(Some((t_id, ver))) => {
+            state.rate_limiter_pair.reset(&client_ip).await;
             let sess = TenantSession { tenant_id: t_id, version: ver };
             let token = crypto::encode_tenant_session(&state.config.qr_key, &sess, exp_unix);
 
@@ -144,15 +145,18 @@ pub async fn handle_scan_pair(
                 }),
             ))
         }
-        _ => Err((
-            StatusCode::BAD_REQUEST,
-            Json(PairResponse {
-                ok: false,
-                tenant_id: None,
-                stall: None,
-                error: Some("Kode pairing tidak valid atau sudah kedaluwarsa. Minta kode baru dari Admin IT.".to_string()),
-            }),
-        )),
+        _ => {
+            state.rate_limiter_pair.record_failure(&client_ip).await;
+            Err((
+                StatusCode::BAD_REQUEST,
+                Json(PairResponse {
+                    ok: false,
+                    tenant_id: None,
+                    stall: None,
+                    error: Some("Kode pairing tidak valid atau sudah kedaluwarsa. Minta kode baru dari Admin IT.".to_string()),
+                }),
+            ))
+        }
     }
 }
 
@@ -219,6 +223,7 @@ pub struct ScanPayloadRequest {
 
 pub async fn handle_scan_qr(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     jar: CookieJar,
     Json(payload): Json<ScanPayloadRequest>,
 ) -> Result<Json<ScanResult>, (StatusCode, Json<ScanResult>)> {
@@ -241,9 +246,26 @@ pub async fn handle_scan_qr(
         ));
     }
 
+    let client_ip = get_client_ip(&headers);
+    let rate_key = format!("{}:{}", client_ip, tenant_id);
+    if state.rate_limiter_code.is_blocked(&rate_key).await {
+        return Ok(Json(ScanResult {
+            result: "invalid".to_string(),
+            staff: None,
+            unit: None,
+            amount: None,
+            at: None,
+            used_at: None,
+            tenant: None,
+            message: Some("Terlalu banyak percobaan scan salah. Silakan tunggu 1 menit.".to_string()),
+            order: None,
+        }));
+    }
+
     let tok = match crypto::parse_qr_payload(&state.config.qr_key, &payload.qr) {
         Ok(t) => t,
         Err(msg) => {
+            state.rate_limiter_code.record_failure(&rate_key).await;
             return Ok(Json(ScanResult {
                 result: "invalid".to_string(),
                 staff: None,
@@ -263,7 +285,14 @@ pub async fn handle_scan_qr(
 
     let res = crate::db::scan_by_token_hash(&state.pool, &token_hash, tenant_id, user_id, payload.items.as_deref()).await;
     match res {
-        Ok(r) => Ok(Json(r)),
+        Ok(r) => {
+            if r.result == "ok" {
+                state.rate_limiter_code.reset(&rate_key).await;
+            } else if r.result == "invalid" {
+                state.rate_limiter_code.record_failure(&rate_key).await;
+            }
+            Ok(Json(r))
+        }
         Err(err) => {
             tracing::error!("Scan token error: {:?}", err);
             Err((
@@ -298,21 +327,6 @@ pub async fn handle_scan_code(
     jar: CookieJar,
     Json(payload): Json<ScanCodeRequest>,
 ) -> Result<Json<ScanResult>, (StatusCode, Json<ScanResult>)> {
-    let client_ip = get_client_ip(&headers);
-    if !state.rate_limiter_code.check(&client_ip).await {
-        return Ok(Json(ScanResult {
-            result: "invalid".to_string(),
-            staff: None,
-            unit: None,
-            amount: None,
-            at: None,
-            used_at: None,
-            tenant: None,
-            message: Some("Terlalu banyak percobaan memasukkan kode salah. Silakan tunggu 1 menit.".to_string()),
-            order: None,
-        }));
-    }
-
     let now_unix = Utc::now().timestamp();
     let tenant_id = extract_tenant_id(&state, &jar, now_unix).await;
     if tenant_id <= 0 {
@@ -332,9 +346,26 @@ pub async fn handle_scan_code(
         ));
     }
 
+    let client_ip = get_client_ip(&headers);
+    let rate_key = format!("{}:{}", client_ip, tenant_id);
+    if state.rate_limiter_code.is_blocked(&rate_key).await {
+        return Ok(Json(ScanResult {
+            result: "invalid".to_string(),
+            staff: None,
+            unit: None,
+            amount: None,
+            at: None,
+            used_at: None,
+            tenant: None,
+            message: Some("Terlalu banyak percobaan memasukkan kode salah. Silakan tunggu 1 menit.".to_string()),
+            order: None,
+        }));
+    }
+
     let normalized = match crypto::normalize_short_code(&payload.code) {
         Some(c) => c,
         None => {
+            state.rate_limiter_code.record_failure(&rate_key).await;
             return Ok(Json(ScanResult {
                 result: "invalid".to_string(),
                 staff: None,
@@ -349,14 +380,22 @@ pub async fn handle_scan_code(
         }
     };
 
-    let today = Utc::now().date_naive();
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today = Utc::now().with_timezone(&wib).date_naive();
     let date_str = today.format("%Y-%m-%d").to_string();
     let code_hash = crypto::short_code_hash(&state.config.short_key, &date_str, &normalized);
     let user_id = crate::db::get_tenant_user_id(&state.pool, tenant_id, state.config.dev_user_id).await;
 
     let res = crate::db::scan_by_short_code(&state.pool, &code_hash, today, tenant_id, user_id, payload.items.as_deref()).await;
     match res {
-        Ok(r) => Ok(Json(r)),
+        Ok(r) => {
+            if r.result == "ok" {
+                state.rate_limiter_code.reset(&rate_key).await;
+            } else if r.result == "invalid" {
+                state.rate_limiter_code.record_failure(&rate_key).await;
+            }
+            Ok(Json(r))
+        }
         Err(err) => {
             tracing::error!("Scan short code error: {:?}", err);
             Err((

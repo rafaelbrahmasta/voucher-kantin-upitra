@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { MenuItemScan, ScanResult, TodayData } from '../../types'
+import jsQR from 'jsqr'
 
 // ─── Tipe tampilan utama ───────────────────────────────────────────────
 type View = 'scan' | 'result' | 'today'
@@ -280,15 +281,12 @@ export default function ScanPage() {
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const jsQR = (window as any).jsQR
-        if (jsQR) {
-          const qr = jsQR(imgData.data, imgData.width, imgData.height, {
-            inversionAttempts: 'dontInvert',
-          })
-          if (qr && qr.data) {
-            handleScanPayload(qr.data)
-            return
-          }
+        const qr = jsQR(imgData.data, imgData.width, imgData.height, {
+          inversionAttempts: 'dontInvert',
+        })
+        if (qr && qr.data) {
+          handleScanPayload(qr.data)
+          return
         }
       }
     }

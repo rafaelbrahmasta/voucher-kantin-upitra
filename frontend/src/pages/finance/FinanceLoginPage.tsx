@@ -5,8 +5,8 @@ import { api } from '../../services/api'
 
 export default function FinanceLoginPage() {
   const navigate = useNavigate()
-  const [username, setUsername] = useState('admin.finance')
-  const [password, setPassword] = useState('Finance@2025')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -97,17 +97,6 @@ export default function FinanceLoginPage() {
                 className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:bg-white focus:outline-none focus:border-sky-500 transition-all font-mono"
               />
             </div>
-          </div>
-
-          <div className="p-3 bg-amber-50/70 border border-amber-100 rounded-xl text-[11px] text-amber-800 flex items-center justify-between">
-            <span>Kredensial Dev: <strong className="font-mono">admin.finance</strong> / <strong className="font-mono">Finance@2025</strong></span>
-            <button
-              type="button"
-              onClick={() => { setUsername('admin.finance'); setPassword('Finance@2025') }}
-              className="text-xs font-bold text-amber-700 hover:text-amber-900 underline"
-            >
-              Isi Otomatis
-            </button>
           </div>
 
           <button
