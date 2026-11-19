@@ -14,6 +14,8 @@ import {
   X,
   Power,
   RefreshCw,
+  Ticket,
+  Copy,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { Staff } from '../../types'
@@ -260,21 +262,22 @@ export default function AdminStaffPage() {
                 <th className="py-3.5 px-4">Nama Lengkap & NIP</th>
                 <th className="py-3.5 px-4">Email Kampus (Outlook)</th>
                 <th className="py-3.5 px-4">Unit / Fakultas</th>
-                <th className="py-3.5 px-4 text-center">Status Voucher</th>
+                <th className="py-3.5 px-4 text-center">Status Master</th>
+                <th className="py-3.5 px-4 text-center">Voucher Hari Ini</th>
                 <th className="py-3.5 px-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     <div className="inline-block w-6 h-6 border-2 border-sky-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p>Memuat data dosen dan staf...</p>
                   </td>
                 </tr>
               ) : filteredStaff.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
                     <Users className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700">Tidak ada data dosen atau staf ditemukan.</p>
                     <p className="text-[11px] text-slate-400 mt-1">Coba sesuaikan kata kunci pencarian atau tambah staf baru.</p>
@@ -315,7 +318,7 @@ export default function AdminStaffPage() {
                       </div>
                     </td>
 
-                    {/* Status */}
+                    {/* Status Master */}
                     <td className="py-3.5 px-4 text-center">
                       {staff.is_active ? (
                         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -327,6 +330,42 @@ export default function AdminStaffPage() {
                           <XCircle className="w-3 h-3" />
                           Nonaktif
                         </span>
+                      )}
+                    </td>
+
+                    {/* Kode Voucher Hari Ini */}
+                    <td className="py-3.5 px-4 text-center">
+                      {staff.today_voucher_code ? (
+                        <div className="inline-flex items-center gap-1.5 bg-sky-50 border border-sky-300 px-2.5 py-1 rounded-xl shadow-xs">
+                          <Ticket className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          <span className="font-mono font-black text-xs text-sky-900 tracking-wider">
+                            {staff.today_voucher_code}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(staff.today_voucher_code || '')
+                              showToast(`Kode voucher ${staff.today_voucher_code} disalin ke clipboard!`)
+                            }}
+                            title="Salin Kode Voucher"
+                            className="p-1 hover:bg-sky-200/60 rounded text-sky-700 transition-colors cursor-pointer"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                          {staff.today_voucher_status === 'used' ? (
+                            <span className="text-[9px] bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-0.5 rounded font-extrabold uppercase">
+                              Terpakai
+                            </span>
+                          ) : (
+                            <span className="text-[9px] bg-sky-200 text-sky-800 px-1.5 py-0.5 rounded font-bold uppercase">
+                              Aktif
+                            </span>
+                          )}
+                        </div>
+                      ) : staff.is_active ? (
+                        <span className="text-slate-400 text-xs italic font-medium">Belum Terbit</span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">-</span>
                       )}
                     </td>
 

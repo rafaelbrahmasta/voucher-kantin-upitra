@@ -50,6 +50,8 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS voucher_items_voucher_idx ON voucher_items (voucher_id);").execute(pool).await;
 
+    sqlx::query("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS short_code varchar(20);").execute(pool).await?;
+
     // 0003_admin_login DDL (Constraint users fleksibel & akun admin awal)
     let _ = sqlx::query("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_check;").execute(pool).await;
     let _ = sqlx::query(r#"
@@ -88,28 +90,41 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
 
 pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sqlx::Error> {
     let q_trimmed = q.unwrap_or("").trim();
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today = chrono::Utc::now().with_timezone(&wib).date_naive();
+
     if !q_trimmed.is_empty() {
         let pattern = format!("%{}%", q_trimmed.to_lowercase());
         let sql = r#"
-            SELECT id, nip, name, email, unit, is_active, created_at
-            FROM staff
-            WHERE LOWER(name) LIKE $1
-               OR LOWER(COALESCE(nip, '')) LIKE $1
-               OR LOWER(email) LIKE $1
-               OR LOWER(unit) LIKE $1
-            ORDER BY is_active DESC, name ASC
+            SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
+                   v.short_code AS today_voucher_code,
+                   v.status::text AS today_voucher_status
+            FROM staff s
+            LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
+            WHERE LOWER(s.name) LIKE $1
+               OR LOWER(COALESCE(s.nip, '')) LIKE $1
+               OR LOWER(s.email) LIKE $1
+               OR LOWER(s.unit) LIKE $1
+            ORDER BY s.is_active DESC, s.name ASC
         "#;
         sqlx::query_as::<_, Staff>(sql)
             .bind(pattern)
+            .bind(today)
             .fetch_all(pool)
             .await
     } else {
         let sql = r#"
-            SELECT id, nip, name, email, unit, is_active, created_at
-            FROM staff
-            ORDER BY is_active DESC, name ASC
+            SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
+                   v.short_code AS today_voucher_code,
+                   v.status::text AS today_voucher_status
+            FROM staff s
+            LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $1
+            ORDER BY s.is_active DESC, s.name ASC
         "#;
-        sqlx::query_as::<_, Staff>(sql).fetch_all(pool).await
+        sqlx::query_as::<_, Staff>(sql)
+            .bind(today)
+            .fetch_all(pool)
+            .await
     }
 }
 

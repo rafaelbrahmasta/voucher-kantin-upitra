@@ -113,10 +113,10 @@ pub async fn run_issue_vouchers(
         // 4. Simpan voucher ke database TERLEBIH DAHULU (status issued, email_sent_at NULL)
         let ins_sql = r#"
             INSERT INTO vouchers (
-                staff_id, voucher_date, amount, token_hash, short_code_hash,
+                staff_id, voucher_date, amount, token_hash, short_code_hash, short_code,
                 valid_from, valid_until, status, email_sent_at
             )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
+            VALUES ($1, $2, 5000, $3, $4, $5, $6, $7, 'issued', NULL)
             RETURNING id
         "#;
 
@@ -125,6 +125,7 @@ pub async fn run_issue_vouchers(
             .bind(date)
             .bind(&token_hash)
             .bind(&short_code_hash)
+            .bind(&short_code)
             .bind(valid_from)
             .bind(valid_until)
             .fetch_one(pool)

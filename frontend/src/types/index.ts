@@ -5,6 +5,8 @@ export interface Staff {
   email: string
   unit: string
   is_active: boolean
+  today_voucher_code?: string
+  today_voucher_status?: string
 }
 
 export interface Tenant {
