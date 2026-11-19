@@ -5,11 +5,11 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use time::Duration as TimeDuration;
 
 use crate::crypto::{self, TenantSession};
 use crate::models::{OrderLineIn, ScanResult, TodayData};
 use crate::AppState;
-
 const TENANT_COOKIE: &str = "tenant_sess";
 
 #[derive(Serialize)]
@@ -117,13 +117,16 @@ pub async fn handle_scan_pair(
             let sess = TenantSession { tenant_id: t_id, version: ver };
             let token = crypto::encode_tenant_session(&state.config.qr_key, &sess, exp_unix);
 
+            let is_https = state.config.env != "dev";
             let mut cookie_builder = Cookie::build((TENANT_COOKIE, token))
                 .path("/")
                 .http_only(true)
-                .same_site(SameSite::Lax);
+                .max_age(TimeDuration::days(30));
 
-            if state.config.env != "dev" {
-                cookie_builder = cookie_builder.secure(true);
+            if is_https {
+                cookie_builder = cookie_builder.same_site(SameSite::None).secure(true);
+            } else {
+                cookie_builder = cookie_builder.same_site(SameSite::Lax).secure(false);
             }
 
             let tenant_name = match crate::db::get_tenant(&state.pool, t_id).await {
@@ -175,6 +178,20 @@ pub async fn handle_scan_tenants(
         .collect();
 
     Json(serde_json::json!({ "tenants": options }))
+}
+
+/// Logout kasir — hapus cookie tenant_sess
+/// Frontend memanggil POST /keluar atau POST /api/scan/logout
+pub async fn handle_scan_logout(
+    jar: CookieJar,
+) -> (CookieJar, Json<serde_json::Value>) {
+    let clear = Cookie::build((TENANT_COOKIE, ""))
+        .path("/")
+        .http_only(true)
+        .max_age(TimeDuration::seconds(-1))
+        .same_site(SameSite::Lax)
+        .build();
+    (jar.add(clear), Json(serde_json::json!({ "ok": true })))
 }
 
 fn get_client_ip(headers: &axum::http::HeaderMap) -> String {

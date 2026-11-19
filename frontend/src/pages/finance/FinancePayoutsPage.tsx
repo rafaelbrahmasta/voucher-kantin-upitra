@@ -28,6 +28,13 @@ export default function FinancePayoutsPage() {
       setLoading(true)
       const res = await api.finance.getPayouts(selectedDate)
       setData(res)
+      // Baca status pencairan yang sudah tersimpan di database
+      if (res?.payouts) {
+        const transferred = new Set<number>(
+          res.payouts.filter((p: any) => p.transferred).map((p: any) => p.id)
+        )
+        setTransferredSet(transferred)
+      }
     } catch (err) {
       console.error('Failed to load payouts', err)
     } finally {
@@ -39,12 +46,17 @@ export default function FinancePayoutsPage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val || 0)
   }
 
-  const handleMarkTransferred = (id: number, name: string, amount: number) => {
+  const handleMarkTransferred = async (id: number, name: string, amount: number) => {
     if (!window.confirm(`Konfirmasi pencairan kas sebesar ${formatRupiah(amount)} untuk "${name}"?`)) return
 
-    setTransferredSet((prev) => new Set(prev).add(id))
-    setSuccessToast(`Pencairan untuk ${name} berhasil diverifikasi`)
-    setTimeout(() => setSuccessToast(''), 3500)
+    try {
+      await api.finance.claimPayout(id, date)
+      setTransferredSet((prev) => new Set(prev).add(id))
+      setSuccessToast(`Pencairan untuk ${name} berhasil diverifikasi dan tersimpan ke database`)
+      setTimeout(() => setSuccessToast(''), 3500)
+    } catch (err: any) {
+      alert(err.message || 'Gagal menyimpan pencairan kas ke database')
+    }
   }
 
   const handlePrint = () => {

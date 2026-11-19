@@ -4,7 +4,6 @@ use axum::response::IntoResponse;
 use axum::Json;
 use chrono::Datelike;
 use std::sync::Arc;
-
 use crate::routes::admin::DateQuery;
 use crate::AppState;
 
@@ -12,12 +11,17 @@ pub async fn handle_finance_summary(
     State(state): State<Arc<AppState>>,
     Query(query): Query<DateQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let date_str = query.tanggal.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+    // Default ke hari ini dalam WIB (UTC+7)
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today_wib = chrono::Utc::now().with_timezone(&wib).format("%Y-%m-%d").to_string();
+    let date_str = query.tanggal.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| today_wib.clone());
+    let is_today = date_str == today_wib;
 
     let sum_sql = r#"
         SELECT count(*) AS issued,
                count(*) FILTER (WHERE status = 'used') AS used,
                count(*) FILTER (WHERE status = 'void') AS void,
+               count(*) FILTER (WHERE status = 'expired') AS expired,
                COALESCE(sum(amount) FILTER (WHERE status = 'used'), 0) AS nominal
         FROM vouchers
         WHERE voucher_date = $1::date
@@ -33,10 +37,19 @@ pub async fn handle_finance_summary(
     let issued: i64 = row.get("issued");
     let used: i64 = row.get("used");
     let void: i64 = row.get("void");
+    let expired: i64 = row.get("expired");
     let nominal: i64 = row.get("nominal");
 
-    let unused = issued - used - void;
+    let unused = issued - used - void - expired;
     let pct_used = if issued > 0 { (used as f64 / issued as f64 * 100.0) as i64 } else { 0 };
+    let pct_expired = if issued > 0 { (expired as f64 / issued as f64 * 100.0) as i64 } else { 0 };
+    let pct_void = if issued > 0 { (void as f64 / issued as f64 * 100.0) as i64 } else { 0 };
+
+    // Budget: Rp5.000 per voucher issued (nominal subsidi per voucher)
+    let budget_issued = issued * 5000_i64;
+    let budget_used = nominal;
+    let budget_expired = expired * 5000_i64;
+    let budget_void = void * 5000_i64;
 
     let per_tenant_sql = r#"
         SELECT t.name, count(v.id) AS count, COALESCE(sum(v.amount), 0) AS amount
@@ -64,26 +77,57 @@ pub async fn handle_finance_summary(
         })
         .collect();
 
+    // Transaksi terbaru hari ini (5 terakhir)
+    let recent_sql = r#"
+        SELECT s.name AS staff, s.unit, COALESCE(t.name, '-') AS kantin,
+               v.amount, v.used_at
+        FROM vouchers v
+        JOIN staff s ON s.id = v.staff_id
+        LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
+        WHERE v.voucher_date = $1::date AND v.status = 'used'
+        ORDER BY v.used_at DESC
+        LIMIT 5
+    "#;
+
+    let recent_rows = sqlx::query(recent_sql)
+        .bind(&date_str)
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    let recent: Vec<serde_json::Value> = recent_rows.iter().map(|r| {
+        let at_utc: chrono::DateTime<chrono::Utc> = r.get("used_at");
+        let at_wib = at_utc.with_timezone(&wib);
+        serde_json::json!({
+            "Staff": r.get::<String, _>("staff"),
+            "Unit": r.get::<String, _>("unit"),
+            "Kantin": r.get::<String, _>("kantin"),
+            "Amount": r.get::<i64, _>("amount"),
+            "At": at_wib.format("%H:%M").to_string(),
+        })
+    }).collect();
+
     Ok(Json(serde_json::json!({
         "date": date_str,
         "dateLabel": date_str,
-        "isToday": true,
+        "isToday": is_today,
         "sum": {
             "Issued": issued,
             "Used": used,
             "Nominal": nominal,
             "Void": void,
+            "Expired": expired,
         },
-        "unused": unused,
+        "unused": unused.max(0),
         "pctUsed": pct_used,
-        "pctExpired": 0,
-        "pctVoid": 0,
-        "budgetIssued": issued * 20000,
-        "budgetUsed": nominal,
-        "budgetExpired": 0,
-        "budgetVoid": 0,
+        "pctExpired": pct_expired,
+        "pctVoid": pct_void,
+        "budgetIssued": budget_issued,
+        "budgetUsed": budget_used,
+        "budgetExpired": budget_expired,
+        "budgetVoid": budget_void,
         "tenants": tenants,
-        "recent": [],
+        "recent": recent,
     })))
 }
 
@@ -100,11 +144,13 @@ pub async fn handle_finance_payouts(
                COALESCE(t.bank_account, '-') AS bank_account,
                t.is_active AS active,
                count(v.id) AS count,
-               COALESCE(sum(v.amount), 0) AS amount
+               COALESCE(sum(v.amount), 0) AS amount,
+               COALESCE(s.status = 'paid', false) AS transferred
         FROM tenants t
         LEFT JOIN vouchers v ON v.used_by_tenant_id = t.id AND v.voucher_date = $1::date AND v.status = 'used'
+        LEFT JOIN settlements s ON s.tenant_id = t.id AND s.business_date = $1::date
         WHERE t.is_active
-        GROUP BY t.id, t.name, t.stall_location, t.owner_name, t.bank_name, t.bank_account, t.is_active
+        GROUP BY t.id, t.name, t.stall_location, t.owner_name, t.bank_name, t.bank_account, t.is_active, s.status
         ORDER BY t.name ASC
     "#;
 
@@ -123,6 +169,7 @@ pub async fn handle_finance_payouts(
         .map(|r| {
             let count: i64 = r.get("count");
             let amount: i64 = r.get("amount");
+            let transferred: bool = r.get("transferred");
             total_count += count;
             total_amount += amount;
 
@@ -136,6 +183,7 @@ pub async fn handle_finance_payouts(
                 "count": count,
                 "amount": amount,
                 "active": r.get::<bool, _>("active"),
+                "transferred": transferred,
             })
         })
         .collect();
@@ -146,6 +194,120 @@ pub async fn handle_finance_payouts(
         "payouts": payouts,
         "totalCount": total_count,
         "totalAmount": total_amount,
+    })))
+}
+
+#[derive(serde::Deserialize)]
+pub struct PayoutClaimRequest {
+    #[serde(rename = "tenantId")]
+    pub tenant_id: i64,
+    pub date: String,
+}
+
+pub async fn handle_finance_payout_claim(
+    State(state): State<Arc<AppState>>,
+    Json(payload): Json<PayoutClaimRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use sqlx::Row;
+
+    // 1. Hitung total voucher dan nominal yang statusnya used untuk stan dan tanggal ini
+    let stat_sql = r#"
+        SELECT count(*) AS count, COALESCE(sum(amount), 0) AS amount
+        FROM vouchers
+        WHERE used_by_tenant_id = $1
+          AND voucher_date = $2::date
+          AND status = 'used'
+    "#;
+    let stat_row = sqlx::query(stat_sql)
+        .bind(payload.tenant_id)
+        .bind(&payload.date)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    let count: i64 = stat_row.get("count");
+    let amount: i64 = stat_row.get("amount");
+
+    if count == 0 || amount == 0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({ "error": "Tidak ada transaksi voucher untuk dicairkan pada tanggal ini" })),
+        ));
+    }
+
+    // 2. Cek apakah sudah pernah dicairkan (status = paid) untuk mencegah pencairan ganda
+    let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2::date";
+    if let Ok(Some(row)) = sqlx::query(check_sql).bind(payload.tenant_id).bind(&payload.date).fetch_optional(&state.pool).await {
+        let status: String = row.get("status");
+        if status == "paid" {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({ "error": "Pencairan kas untuk stan dan tanggal ini sudah selesai dilakukan (mencegah pencairan ganda)." })),
+            ));
+        }
+    }
+
+    // 3. Buat catatan di tabel payouts
+    let receipt_no = format!("PAY-{}-{}", payload.date.replace("-", ""), payload.tenant_id);
+    let ins_payout_sql = r#"
+        INSERT INTO payouts (receipt_no, tenant_id, amount, status, created_by)
+        VALUES ($1, $2, $3, 'pending', 1)
+        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount
+        RETURNING id
+    "#;
+
+    let payout_row = sqlx::query(ins_payout_sql)
+        .bind(&receipt_no)
+        .bind(payload.tenant_id)
+        .bind(amount as i32)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat payout: {}", e) }))))?;
+
+    let payout_id: i64 = payout_row.get("id");
+
+    // 4. Upsert ke tabel settlements
+    let upsert_settlement_sql = r#"
+        INSERT INTO settlements (tenant_id, business_date, voucher_count, total_amount, status, payout_id, closed_at)
+        VALUES ($1, $2::date, $3, $4, 'paid'::settlement_status, $5, now())
+        ON CONFLICT (tenant_id, business_date)
+        DO UPDATE SET status = 'paid'::settlement_status, voucher_count = EXCLUDED.voucher_count, total_amount = EXCLUDED.total_amount, payout_id = EXCLUDED.payout_id, closed_at = now()
+        RETURNING id
+    "#;
+
+    let settlement_row = sqlx::query(upsert_settlement_sql)
+        .bind(payload.tenant_id)
+        .bind(&payload.date)
+        .bind(count as i32)
+        .bind(amount as i32)
+        .bind(payout_id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat settlement: {}", e) }))))?;
+
+    let settlement_id: i64 = settlement_row.get("id");
+
+    // 5. Hubungkan semua voucher terkait ke settlement_id ini
+    let upd_vouchers_sql = r#"
+        UPDATE vouchers
+        SET settlement_id = $1
+        WHERE used_by_tenant_id = $2
+          AND voucher_date = $3::date
+          AND status = 'used'
+    "#;
+    let _ = sqlx::query(upd_vouchers_sql)
+        .bind(settlement_id)
+        .bind(payload.tenant_id)
+        .bind(&payload.date)
+        .execute(&state.pool)
+        .await;
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "receiptNo": receipt_no,
+        "payoutId": payout_id,
+        "settlementId": settlement_id,
+        "amount": amount,
     })))
 }
 
@@ -233,11 +395,17 @@ pub async fn handle_finance_export(
     csv.push_str("No,Tanggal,Hari,Jam,Nama Staf,Unit/Departemen,Email Staf,Kantin,Lokasi Stan,Menu yang Dipesan,Nominal (Rp),Status\r\n");
 
     // Escape field CSV yang mengandung koma/kutip/newline
+    // Juga sanitasi formula injection (Excel/LibreOffice)
     let escape_csv = |s: &str| -> String {
-        if s.contains(',') || s.contains('"') || s.contains('\n') {
-            format!("\"{}\"", s.replace('"', "\"\""))
+        let sanitized = if s.starts_with('=') || s.starts_with('+') || s.starts_with('-') || s.starts_with('@') {
+            format!("'{}", s)  // prefix dengan ' untuk mencegah formula injection
         } else {
             s.to_string()
+        };
+        if sanitized.contains(',') || sanitized.contains('"') || sanitized.contains('\n') {
+            format!("\"{}\"", sanitized.replace('"', "\"\""))
+        } else {
+            sanitized
         }
     };
 
@@ -246,13 +414,25 @@ pub async fn handle_finance_export(
     let mut jumlah_batal: usize = 0;
 
     for (i, row) in rows.iter().enumerate() {
-        // Decode sebagai DateTime<Utc> (TIMESTAMPTZ), konversi ke WIB
-        let used_at_utc: chrono::DateTime<chrono::Utc> = row.get("used_at");
-        let used_at_wib = used_at_utc.with_timezone(&wib);
+        // Decode sebagai Option<DateTime<Utc>> — voucher void bisa punya used_at NULL
+        let used_at_opt: Option<chrono::DateTime<chrono::Utc>> = row.get("used_at");
 
-        let tanggal = used_at_wib.format("%d/%m/%Y").to_string();
-        let hari = hari_id(used_at_wib.weekday());
-        let jam = used_at_wib.format("%H:%M:%S").to_string();
+        let (tanggal, hari, jam) = if let Some(used_at_utc) = used_at_opt {
+            let used_at_wib = used_at_utc.with_timezone(&wib);
+            (
+                used_at_wib.format("%d/%m/%Y").to_string(),
+                hari_id(used_at_wib.weekday()),
+                used_at_wib.format("%H:%M:%S").to_string(),
+            )
+        } else {
+            // Fallback: gunakan voucher_date dari kolom voucher_date
+            let vdate: chrono::NaiveDate = row.get("voucher_date");
+            (
+                vdate.format("%d/%m/%Y").to_string(),
+                hari_id(vdate.weekday()),
+                "-".to_string(),
+            )
+        };
 
         let staff_name: String = row.get("staff_name");
         let unit: String = row.get("unit");

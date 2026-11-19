@@ -156,6 +156,12 @@ export const api = {
         totalAmount: number
       }>(`/finance/payouts${tanggal ? `?tanggal=${tanggal}` : ''}`),
 
+    claimPayout: (tenantId: number, date: string) =>
+      request<{ ok: boolean; receiptNo: string; payoutId: number; amount: number }>('/finance/payouts/claim', {
+        method: 'POST',
+        body: JSON.stringify({ tenantId, date }),
+      }),
+
     getTransactions: (params?: { dari?: string; sampai?: string; tenant?: number; unit?: string; halaman?: number }) => {
       const search = new URLSearchParams()
       if (params?.dari) search.set('dari', params.dari)
@@ -215,6 +221,6 @@ export const api = {
       }),
     getTenants: () =>
       request<{ tenants: Array<{ id: number; name: string; stall: string }> }>('/scan/tenants'),
-    logout: () => fetch('/keluar', { method: 'POST' }).then(() => ({ ok: true })),
+    logout: () => request<{ ok: boolean }>('/scan/logout', { method: 'POST' }),
   },
 }

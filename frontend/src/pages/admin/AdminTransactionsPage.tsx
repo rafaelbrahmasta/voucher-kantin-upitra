@@ -46,7 +46,9 @@ export default function AdminTransactionsPage() {
   const loadTransactions = async (pageTarget = 1) => {
     try {
       setLoading(true)
-      const res = await api.admin.getTransactions({
+      // Finance pakai endpoint /api/finance/transactions, Admin pakai /api/admin/transactions
+      const getter = isFinance ? api.finance.getTransactions : api.admin.getTransactions
+      const res = await getter({
         dari,
         sampai,
         tenant: selectedTenant || undefined,

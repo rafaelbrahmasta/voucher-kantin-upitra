@@ -4,7 +4,7 @@ use axum::Json;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::models::{StaffInput, TenantInput};
+use crate::models::{MenuItemInput, StaffInput, TenantInput};
 use crate::AppState;
 
 // ── Admin Staff CRUD ──────────────────────────────────────────────
@@ -255,6 +255,46 @@ pub async fn handle_transactions(
     State(state): State<Arc<AppState>>,
     Query(query): Query<TxQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use sqlx::Row;
+
+    // Default tanggal: hari ini (WIB)
+    let today = chrono::Utc::now()
+        .with_timezone(&chrono::FixedOffset::east_opt(7 * 3600).unwrap())
+        .format("%Y-%m-%d")
+        .to_string();
+    let dari = query.dari.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| today.clone());
+    let sampai = query.sampai.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| today.clone());
+
+    // Pagination
+    let per_page: i64 = 50;
+    let page = query.halaman.unwrap_or(1).max(1);
+    let offset = (page - 1) * per_page;
+
+    // Hitung total rows untuk pagination
+    let count_sql = r#"
+        SELECT count(*) AS cnt
+        FROM vouchers v
+        JOIN staff s ON s.id = v.staff_id
+        LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
+        WHERE v.status IN ('used', 'void')
+          AND v.voucher_date BETWEEN $1::date AND $2::date
+          AND ($3::bigint IS NULL OR v.used_by_tenant_id = $3)
+          AND ($4::text IS NULL OR $4 = '' OR LOWER(s.unit) LIKE LOWER($4))
+    "#;
+
+    let total_rows: i64 = sqlx::query_scalar(count_sql)
+        .bind(&dari)
+        .bind(&sampai)
+        .bind(query.tenant)
+        .bind(query.unit.as_deref().map(|u| format!("%{}%", u)))
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+
+    let total_pages = ((total_rows as f64) / (per_page as f64)).ceil() as i64;
+    let total_pages = total_pages.max(1);
+
+    // Query utama dengan filter lengkap
     let sql = r#"
         SELECT v.id, v.used_at, s.name AS staff, s.unit, COALESCE(t.name, 'Stan Kantin') AS tenant,
                v.amount, (v.status = 'void') AS voided,
@@ -267,22 +307,33 @@ pub async fn handle_transactions(
         JOIN staff s ON s.id = v.staff_id
         LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
         WHERE v.status IN ('used', 'void')
+          AND v.voucher_date BETWEEN $1::date AND $2::date
+          AND ($3::bigint IS NULL OR v.used_by_tenant_id = $3)
+          AND ($4::text IS NULL OR $4 = '' OR LOWER(s.unit) LIKE LOWER($4))
         ORDER BY v.used_at DESC, v.id DESC
-        LIMIT 100
+        LIMIT $5 OFFSET $6
     "#;
 
-    use sqlx::Row;
     let rows = sqlx::query(sql)
+        .bind(&dari)
+        .bind(&sampai)
+        .bind(query.tenant)
+        .bind(query.unit.as_deref().map(|u| format!("%{}%", u)))
+        .bind(per_page)
+        .bind(offset)
         .fetch_all(&state.pool)
         .await
         .unwrap_or_default();
 
+    // Konversi ke WIB untuk tampilan
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
     let txs: Vec<serde_json::Value> = rows
         .iter()
         .map(|r| {
-            let at: chrono::DateTime<chrono::Utc> = r.get("used_at");
+            let at_utc: chrono::DateTime<chrono::Utc> = r.get("used_at");
+            let at_wib = at_utc.with_timezone(&wib);
             serde_json::json!({
-                "At": at.to_rfc3339(),
+                "At": at_wib.to_rfc3339(),
                 "Staff": r.get::<String, _>("staff"),
                 "Unit": r.get::<String, _>("unit"),
                 "Tenant": r.get::<String, _>("tenant"),
@@ -293,6 +344,14 @@ pub async fn handle_transactions(
         })
         .collect();
 
+    // Ambil daftar unit untuk filter dropdown
+    let unit_rows = sqlx::query_scalar::<_, String>(
+        "SELECT DISTINCT unit FROM staff WHERE unit IS NOT NULL AND unit != '' ORDER BY unit ASC"
+    )
+    .fetch_all(&state.pool)
+    .await
+    .unwrap_or_default();
+
     let tenants = crate::db::list_tenants(&state.pool).await.unwrap_or_default();
     let tenant_options: Vec<serde_json::Value> = tenants
         .into_iter()
@@ -301,13 +360,13 @@ pub async fn handle_transactions(
 
     Ok(Json(serde_json::json!({
         "transactions": txs,
-        "total": rows.len(),
-        "page": query.halaman.unwrap_or(1),
-        "pages": 1,
-        "perPage": 50,
-        "dari": query.dari.unwrap_or_default(),
-        "sampai": query.sampai.unwrap_or_default(),
-        "units": [],
+        "total": total_rows,
+        "page": page,
+        "pages": total_pages,
+        "perPage": per_page,
+        "dari": dari,
+        "sampai": sampai,
+        "units": unit_rows,
         "tenants": tenant_options,
     })))
 }
@@ -340,4 +399,52 @@ pub async fn handle_admin_issue_vouchers(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e }))))?;
 
     Ok(Json(serde_json::to_value(summary).unwrap()))
+}
+
+// ── Admin Tenant Menu Items CRUD ──────────────────────────────────
+
+pub async fn handle_admin_tenant_menu_list(
+    State(state): State<Arc<AppState>>,
+    Path(tenant_id): Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let items = crate::db::list_menu_items(&state.pool, tenant_id, false)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    Ok(Json(serde_json::json!({ "items": items })))
+}
+
+pub async fn handle_admin_tenant_menu_create(
+    State(state): State<Arc<AppState>>,
+    Path(tenant_id): Path<i64>,
+    Json(payload): Json<MenuItemInput>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let id = crate::db::create_menu_item(&state.pool, tenant_id, &payload)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    Ok(Json(serde_json::json!({ "ok": true, "id": id })))
+}
+
+pub async fn handle_admin_tenant_menu_update(
+    State(state): State<Arc<AppState>>,
+    Path((tenant_id, id)): Path<(i64, i64)>,
+    Json(payload): Json<MenuItemInput>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    crate::db::update_menu_item(&state.pool, id, tenant_id, &payload)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn handle_admin_tenant_menu_delete(
+    State(state): State<Arc<AppState>>,
+    Path((tenant_id, id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    crate::db::delete_menu_item(&state.pool, id, tenant_id)
+        .await
+        .map_err(|e| (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": e.to_string() }))))?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
 }

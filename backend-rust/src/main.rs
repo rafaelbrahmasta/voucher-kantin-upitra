@@ -46,6 +46,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Koneksi database PostgreSQL & verifikasi skema migrasi berhasil.");
 
+    // Background job: periksa dan ubah status voucher yang lewat jam berlaku (16:00 WIB) menjadi expired setiap 60 detik
+    let expire_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if let Ok(count) = db::auto_expire_vouchers(&expire_pool).await {
+                if count > 0 {
+                    tracing::info!("Auto-expired {} voucher(s) melewati jam berlaku", count);
+                }
+            }
+        }
+    });
+
     let state = Arc::new(AppState {
         pool,
         config: cfg.clone(),
@@ -53,7 +67,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         rate_limiter_pair: RateLimiter::new(8, 60), // Maksimal 8 percobaan pairing salah per menit
     });
 
-    // Keamanan CORS ketat
+    // CORS: Whitelist eksplisit — TIDAK mirror_request + allow_credentials
+    // Hanya origin yang terdaftar yang boleh kirim cookie ke API
+    let mut allowed_origins: Vec<axum::http::HeaderValue> = vec![
+        "http://localhost:3000".parse().unwrap(),
+        "http://localhost:8080".parse().unwrap(),
+        "http://127.0.0.1:8080".parse().unwrap(),
+        "http://127.0.0.1:3000".parse().unwrap(),
+    ];
+
+    // Tambahkan ALLOWED_ORIGINS dari .env jika ada (pisahkan dengan koma)
+    if let Some(extra) = voucher_kantin_backend::config::get_allowed_origins() {
+        for origin in extra.split(',') {
+            let o = origin.trim();
+            if !o.is_empty() {
+                if let Ok(hv) = o.parse::<axum::http::HeaderValue>() {
+                    allowed_origins.push(hv);
+                }
+            }
+        }
+    }
+
     let cors = CorsLayer::new()
         .allow_methods([
             axum::http::Method::GET,
@@ -68,7 +102,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             axum::http::header::ACCEPT,
         ])
         .allow_credentials(true)
-        .allow_origin(tower_http::cors::AllowOrigin::mirror_request());
+        .allow_origin(tower_http::cors::AllowOrigin::list(allowed_origins));
 
     // Cari letak frontend/dist
     let dist_path = if Path::new("frontend/dist/index.html").exists() {
@@ -103,6 +137,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .route("/tenants/:id/code", post(routes::admin::handle_admin_tenant_issue_code))
         .route("/tenants/:id/revoke", post(routes::admin::handle_admin_tenant_revoke))
+        .route("/tenants/:id/menu", get(routes::admin::handle_admin_tenant_menu_list).post(routes::admin::handle_admin_tenant_menu_create))
+        .route("/tenants/:id/menu/:menu_id", put(routes::admin::handle_admin_tenant_menu_update).delete(routes::admin::handle_admin_tenant_menu_delete))
         .route("/transactions", get(routes::admin::handle_transactions))
         .route("/issue-vouchers", post(routes::admin::handle_admin_issue_vouchers))
         .route_layer(middleware::from_fn_with_state(state.clone(), routes::auth::admin_auth_middleware));
@@ -111,6 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let finance_routes = Router::new()
         .route("/summary", get(routes::finance::handle_finance_summary))
         .route("/payouts", get(routes::finance::handle_finance_payouts))
+        .route("/payouts/claim", post(routes::finance::handle_finance_payout_claim))
         .route("/transactions", get(routes::admin::handle_transactions))
         .route("/export", get(routes::finance::handle_finance_export))
         .route_layer(middleware::from_fn_with_state(state.clone(), routes::auth::finance_auth_middleware));
@@ -135,6 +172,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/scan/code", post(routes::scan::handle_scan_code))
         .route("/api/today", get(routes::scan::handle_today))
         .route("/api/menu", get(routes::scan::handle_menu))
+        // Logout kasir — hapus cookie tenant_sess
+        .route("/keluar", post(routes::scan::handle_scan_logout))
+        .route("/api/scan/logout", post(routes::scan::handle_scan_logout))
         // Pasang router admin dan finance yang terproteksi middleware
         .nest("/api/admin", admin_routes)
         .nest("/api/finance", finance_routes)

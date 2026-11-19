@@ -67,11 +67,17 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
     "#).execute(pool).await;
 
     // Tambah akun default Admin Super IT & Biro Keuangan jika belum ada
+    // Password di-hash menggunakan argon2id — TIDAK disimpan plaintext
+    // Hash: Admin@IT2025 dan Finance@2025
     sqlx::query(r#"
         INSERT INTO users (role, username, password_hash, display_name)
         VALUES
-          ('admin',   'admin.it',      'plain:Admin@IT2025', 'Admin Super IT'),
-          ('finance', 'admin.finance', 'plain:Finance@2025',  'Admin Biro Keuangan')
+          ('admin',   'admin.it',
+           '$argon2id$v=19$m=19456,t=2,p=1$7ZKKhoYN2o9h8un2UhvZRw$TK5Mbe0QBFI94eAtwsZqCnWGl3FbnljyBQp0A89w0so',
+           'Admin Super IT'),
+          ('finance', 'admin.finance',
+           '$argon2id$v=19$m=19456,t=2,p=1$pW8d8qng3pthcmvJ5GWjfQ$ZK4dI5v9bV8SNJSI8alEXeHTwY1ofggkDANgOUJgE8Y',
+           'Admin Biro Keuangan')
         ON CONFLICT (username) DO NOTHING;
     "#).execute(pool).await?;
 
@@ -344,10 +350,15 @@ pub async fn redeem_pairing_code(pool: &PgPool, raw_code: &str) -> Result<Option
         None => return Ok(None),
     };
     let hash = hash_pairing_code(&normalized);
+    // Sekali pakai (one-time use): hapus access_hash setelah dipakai dan naikkan session_version
+    // sehingga HP lama otomatis terputus dan kode tidak bisa dipakai ulang.
     let sql = r#"
-        SELECT id, session_version
-        FROM tenants
+        UPDATE tenants
+        SET access_hash = NULL,
+            session_version = session_version + 1,
+            updated_at = now()
         WHERE access_hash = $1 AND is_active
+        RETURNING id, session_version
     "#;
     let row = sqlx::query(sql)
         .bind(hash)
@@ -403,6 +414,52 @@ pub async fn list_menu_items(pool: &PgPool, tenant_id: i64, only_available: bool
         .bind(tenant_id)
         .fetch_all(pool)
         .await
+}
+
+pub async fn create_menu_item(pool: &PgPool, tenant_id: i64, in_data: &MenuItemInput) -> Result<i64, sqlx::Error> {
+    let sql = r#"
+        INSERT INTO menu_items (tenant_id, name, price, is_available)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+    "#;
+    let row = sqlx::query(sql)
+        .bind(tenant_id)
+        .bind(in_data.name.trim())
+        .bind(in_data.price)
+        .bind(in_data.available)
+        .fetch_one(pool)
+        .await?;
+
+    Ok(row.get("id"))
+}
+
+pub async fn update_menu_item(pool: &PgPool, id: i64, tenant_id: i64, in_data: &MenuItemInput) -> Result<(), sqlx::Error> {
+    let sql = r#"
+        UPDATE menu_items
+        SET name = $3, price = $4, is_available = $5, updated_at = now()
+        WHERE id = $1 AND tenant_id = $2
+    "#;
+    sqlx::query(sql)
+        .bind(id)
+        .bind(tenant_id)
+        .bind(in_data.name.trim())
+        .bind(in_data.price)
+        .bind(in_data.available)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn delete_menu_item(pool: &PgPool, id: i64, tenant_id: i64) -> Result<(), sqlx::Error> {
+    let sql = "DELETE FROM menu_items WHERE id = $1 AND tenant_id = $2";
+    sqlx::query(sql)
+        .bind(id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+
+    Ok(())
 }
 
 // ── Scanner Voucher ───────────────────────────────────────────────
@@ -607,32 +664,39 @@ pub async fn record_order_items(
         if item.qty <= 0 {
             continue;
         }
-        let sql = "SELECT name, price FROM menu_items WHERE id = $1 AND tenant_id = $2";
+        // Batasi qty antara 1 s/d 20 sesuai constraint database
+        let valid_qty = item.qty.clamp(1, 20);
+
+        // Hanya masukkan menu yang aktif (is_available = true) dan milik stan ini
+        let sql = "SELECT name, price FROM menu_items WHERE id = $1 AND tenant_id = $2 AND is_available = true";
         if let Ok(Some(row)) = sqlx::query(sql).bind(item.id).bind(tenant_id).fetch_optional(pool).await {
             let name: String = row.get("name");
             let price: i32 = row.get("price");
-            let subtotal = price * item.qty;
-            total += subtotal;
+            let subtotal = price * valid_qty;
 
             let ins_sql = r#"
                 INSERT INTO voucher_items (voucher_id, menu_item_id, name, price, qty)
                 VALUES ($1, $2, $3, $4, $5)
             "#;
-            let _ = sqlx::query(ins_sql)
+            let ins_res = sqlx::query(ins_sql)
                 .bind(voucher_id)
                 .bind(item.id)
                 .bind(&name)
                 .bind(price)
-                .bind(item.qty)
+                .bind(valid_qty)
                 .execute(pool)
                 .await;
 
-            out_items.push(OrderLineOut {
-                name,
-                qty: item.qty,
-                price,
-                subtotal,
-            });
+            // Hanya sertakan di rincian pesanan jika penyimpanan ke database berhasil
+            if ins_res.is_ok() {
+                total += subtotal;
+                out_items.push(OrderLineOut {
+                    name,
+                    qty: valid_qty,
+                    price,
+                    subtotal,
+                });
+            }
         }
     }
 
@@ -656,16 +720,24 @@ pub async fn verify_user_login(
     identifier: &str,
     password: &str,
 ) -> Result<User, String> {
+    use argon2::{Argon2, PasswordHash, PasswordVerifier};
+
     let id_clean = identifier.trim();
+
+    // Tolak username kosong — mencegah login tanpa identifier
+    if id_clean.is_empty() {
+        return Err("Username wajib diisi".to_string());
+    }
     if password.trim().is_empty() {
         return Err("Password wajib diisi".to_string());
     }
 
+    // Query TANPA fallback "OR $2 = ''" — identifier harus cocok persis
     let sql = r#"
         SELECT id, role::text AS role, username, password_hash, display_name, is_active
         FROM users
         WHERE role::text = $1
-          AND (LOWER(username) = LOWER($2) OR LOWER(display_name) = LOWER($2) OR $2 = '')
+          AND (LOWER(username) = LOWER($2) OR LOWER(display_name) = LOWER($2))
           AND is_active = true
         LIMIT 1
     "#;
@@ -675,29 +747,50 @@ pub async fn verify_user_login(
         .bind(id_clean)
         .fetch_optional(pool)
         .await
-        .map_err(|e| format!("Database error: {}", e))?;
+        .map_err(|_| "Terjadi kesalahan pada server. Silakan coba lagi.".to_string())?;
 
     let u = match user {
         Some(u) => u,
-        None => return Err("Pengguna tidak ditemukan atau akun dinonaktifkan".to_string()),
+        None => return Err("Username atau password salah".to_string()),
     };
 
     let hash = u.password_hash.as_deref().unwrap_or("");
-    let is_valid = if let Some(plain) = hash.strip_prefix("plain:") {
+
+    // Verifikasi password dengan argon2 (hash modern) atau plaintext legacy
+    let is_valid = if hash.starts_with("$argon2") {
+        // Gunakan argon2 verify yang sesungguhnya
+        match PasswordHash::new(hash) {
+            Ok(parsed_hash) => Argon2::default()
+                .verify_password(password.as_bytes(), &parsed_hash)
+                .is_ok(),
+            Err(_) => false,
+        }
+    } else if let Some(plain) = hash.strip_prefix("plain:") {
+        // Legacy plaintext — hanya untuk dev/migrasi awal
+        // TODO: Migrasi ke argon2 setelah login pertama
         plain == password
-    } else if hash.starts_with("$argon2") {
-        hash == password
-    } else if !hash.is_empty() {
-        hash == password
     } else {
         false
     };
 
     if !is_valid {
-        return Err("Password atau kredensial yang Anda masukkan salah".to_string());
+        return Err("Username atau password salah".to_string());
     }
 
     Ok(u)
+}
+
+// ── Auto Expire Job (Tandai Voucher Kedaluwarsa) ──────────────────
+
+pub async fn auto_expire_vouchers(pool: &PgPool) -> Result<u64, sqlx::Error> {
+    let sql = r#"
+        UPDATE vouchers
+        SET status = 'expired'
+        WHERE status = 'issued'
+          AND (now() > valid_until OR voucher_date < CURRENT_DATE)
+    "#;
+    let res = sqlx::query(sql).execute(pool).await?;
+    Ok(res.rows_affected())
 }
 
 // ── Laporan Hari Ini (Kasir) ──────────────────────────────────────

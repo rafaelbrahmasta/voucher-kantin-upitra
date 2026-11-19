@@ -9,7 +9,6 @@ use time::Duration;
 
 use crate::crypto::{self, AdminSession};
 use crate::AppState;
-
 /// Helper: buat cookie yang kompatibel dengan HTTP (dev) dan HTTPS (prod)
 /// Di HTTP/dev: SameSite=Lax, Secure=false (agar cookie diterima browser)
 /// Di HTTPS/prod: SameSite=None, Secure=true (agar cross-origin request bisa kirim cookie)
@@ -129,22 +128,6 @@ pub async fn handle_auth_me(
                 });
             }
         }
-    }
-
-    // Fallback mode dev jika tidak ada sesi sama sekali
-    if state.config.env == "dev" && state.config.dev_tenant_id > 0 {
-        let tenant_name = match crate::db::get_tenant(&state.pool, state.config.dev_tenant_id).await {
-            Ok(Some(t)) => t.name,
-            _ => "Stan Kantin (Dev)".to_string(),
-        };
-        return Json(AuthMeResponse {
-            authenticated: true,
-            role: "tenant".to_string(),
-            display_name: Some(tenant_name.clone()),
-            user_id: None,
-            tenant_id: Some(state.config.dev_tenant_id),
-            stall: Some(tenant_name),
-        });
     }
 
     Json(AuthMeResponse {
@@ -474,23 +457,105 @@ pub async fn handle_microsoft_callback(
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Parse JSON profil gagal: {}", e)))?;
 
-    let display_name = user_info["displayName"]
+    let _display_name = user_info["displayName"]
         .as_str()
         .unwrap_or("Staf UPITRA (Microsoft)")
         .to_string();
 
-    // 3. Cocokkan atau hubungkan ke database
+    // ── VALIDASI KEAMANAN MICROSOFT SSO ──────────────────────────
+    // 2a. Validasi email domain — harus upitra.ac.id atau student.upitra.ac.id
+    let ms_email = user_info["mail"]
+        .as_str()
+        .or_else(|| user_info["userPrincipalName"].as_str())
+        .unwrap_or("")
+        .to_lowercase();
+
+    let allowed_domains = ["upitra.ac.id", "student.upitra.ac.id"];
+    let email_ok = allowed_domains.iter().any(|d| ms_email.ends_with(&format!("@{}", d)));
+    if !email_ok {
+        return Err((
+            StatusCode::FORBIDDEN,
+            format!(
+                "Akses ditolak: Akun Microsoft '{}' bukan domain upitra.ac.id. Hanya akun institusi UPITRA yang diizinkan.",
+                ms_email
+            ),
+        ));
+    }
+
+    // 2b. Validasi tenant ID — pastikan dari tenant UPITRA
+    // id_token adalah JWT: header.payload.signature — decode payload (base64url)
+    let claimed_tid = token_json["id_token"]
+        .as_str()
+        .and_then(|id_tok| {
+            let parts: Vec<&str> = id_tok.split('.').collect();
+            if parts.len() >= 2 {
+                use base64::Engine as _;
+                base64::engine::general_purpose::URL_SAFE_NO_PAD
+                    .decode(parts[1])
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+                    .and_then(|v| v["tid"].as_str().map(|s| s.to_string()))
+            } else {
+                None
+            }
+        });
+
+    if let Some(ref expected_tid) = state.config.ms_tenant_id {
+        match &claimed_tid {
+            Some(actual_tid) if actual_tid != expected_tid => {
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    format!(
+                        "Akses ditolak: Token dari tenant '{}', bukan tenant UPITRA yang terdaftar.",
+                        actual_tid
+                    ),
+                ));
+            }
+            None => {
+                // Tidak ada id_token — tolak untuk keamanan
+                return Err((
+                    StatusCode::FORBIDDEN,
+                    "Akses ditolak: Tidak dapat memverifikasi tenant Microsoft dari token.".to_string(),
+                ));
+            }
+            _ => {} // tenant cocok, lanjut
+        }
+    }
+
+    // 3. Cocokkan ke database berdasarkan EMAIL (bukan LIMIT 1 acak)
     let db_user: Option<(i64, String)> = sqlx::query_as(
-        "SELECT id, display_name FROM users WHERE role::text = $1 AND is_active = true LIMIT 1"
+        "SELECT id, display_name FROM users WHERE role::text = $1 AND LOWER(username) = LOWER($2) AND is_active = true LIMIT 1"
     )
     .bind(role)
+    .bind(&ms_email)
     .fetch_optional(&state.pool)
     .await
     .unwrap_or(None);
 
+    // Fallback: ambil user pertama sesuai role jika email belum terdaftar
+    let db_user = if db_user.is_none() {
+        sqlx::query_as::<_, (i64, String)>(
+            "SELECT id, display_name FROM users WHERE role::text = $1 AND is_active = true ORDER BY id ASC LIMIT 1"
+        )
+        .bind(role)
+        .fetch_optional(&state.pool)
+        .await
+        .unwrap_or(None)
+    } else {
+        db_user
+    };
+
     let (user_id, final_display_name) = match db_user {
         Some((id, name)) => (id, name),
-        None => (1, display_name),
+        None => {
+            return Err((
+                StatusCode::FORBIDDEN,
+                format!(
+                    "Akses ditolak: Tidak ada akun {} aktif di sistem. Hubungi Admin IT.",
+                    role
+                ),
+            ));
+        }
     };
 
     // 4. Terbitkan Sesi Cookie

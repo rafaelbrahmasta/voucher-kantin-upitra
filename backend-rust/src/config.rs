@@ -17,9 +17,11 @@ pub struct Config {
     pub ms_mail_from: Option<String>,
     pub smtp_host: Option<String>,
     pub smtp_port: u16,
+    pub smtp_user: Option<String>,
+    pub smtp_pass: Option<String>,
 }
 
-fn get_env_val(key: &str) -> Option<String> {
+pub fn get_env_val(key: &str) -> Option<String> {
     if let Ok(val) = env::var(key) {
         let v = val.trim().to_string();
         if !v.is_empty() {
@@ -47,6 +49,12 @@ fn get_env_val(key: &str) -> Option<String> {
     None
 }
 
+/// Ambil daftar origin yang diizinkan dari ALLOWED_ORIGINS di .env
+/// Format: comma-separated URL, contoh: https://myapp.trycloudflare.com,https://voucher.upitra.ac.id
+pub fn get_allowed_origins() -> Option<String> {
+    get_env_val("ALLOWED_ORIGINS")
+}
+
 impl Config {
     pub fn from_env() -> Result<Self, String> {
         // Muat file .env dari folder saat ini atau folder parent
@@ -71,6 +79,12 @@ impl Config {
             return Err("QR_KEY dan SHORT_KEY harus minimal 32 karakter".to_string());
         }
 
+        if env_mode != "dev" {
+            if qr_str.contains("dev-only") || qr_str.contains("change-me") || short_str.contains("dev-only") || short_str.contains("change-me") {
+                return Err("KEAMANAN: Di mode produksi, QR_KEY dan SHORT_KEY TIDAK boleh menggunakan kunci rahasia default/contoh! Buat kunci baru acak (misal: openssl rand -hex 32).".to_string());
+            }
+        }
+
         let dev_tenant_id = get_env_val("DEV_TENANT_ID")
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
@@ -91,6 +105,8 @@ impl Config {
         let smtp_port = get_env_val("SMTP_PORT")
             .and_then(|s| s.parse().ok())
             .unwrap_or(1025);
+        let smtp_user = get_env_val("SMTP_USER");
+        let smtp_pass = get_env_val("SMTP_PASS");
 
         Ok(Config {
             env: env_mode,
@@ -108,6 +124,8 @@ impl Config {
             ms_mail_from,
             smtp_host,
             smtp_port,
+            smtp_user,
+            smtp_pass,
         })
     }
 }

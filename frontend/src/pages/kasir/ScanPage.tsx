@@ -190,25 +190,10 @@ export default function ScanPage() {
   }, [])
 
   const checkAuth = async () => {
-    // 1. Baca sesi lokal dulu sebagai fallback instan
-    let localStall = ''
-    let localTenantId = 0
-    try {
-      const saved = localStorage.getItem('upitra_kasir_session')
-      if (saved) {
-        const parsed = JSON.parse(saved)
-        if (parsed?.stall) {
-          localStall = parsed.stall
-          localTenantId = parsed.tenantId || 0
-          setStallName(parsed.stall)
-        }
-      }
-    } catch {}
-
     try {
       const session = await api.kasir.me()
       if (session.authenticated) {
-        const name = session.stall || session.displayName || localStall || 'Stan Kantin'
+        const name = session.stall || session.displayName || 'Stan Kantin'
         setStallName(name)
         localStorage.setItem('upitra_kasir_session', JSON.stringify({
           authenticated: true,
@@ -220,51 +205,8 @@ export default function ScanPage() {
         loadToday()
         return
       }
-
-      // 2. Jika cookie belum terbaca tapi ada data di localStorage, pulihkan sesi dengan auto-pair
-      if (localTenantId > 0) {
-        try {
-          const rePair = await api.kasir.pair({ tenant_id: localTenantId })
-          if (rePair.ok) {
-            setStallName(rePair.stall || localStall || 'Stan Kantin')
-            loadMenu()
-            loadToday()
-            return
-          }
-        } catch {}
-      }
-
-      // 3. Fallback dev: hubungkan otomatis ke stan pertama jika ada
-      try {
-        const tenantsRes = await api.kasir.getTenants()
-        if (tenantsRes.tenants && tenantsRes.tenants.length > 0) {
-          const first = tenantsRes.tenants[0]
-          const auto = await api.kasir.pair({ tenant_id: first.id })
-          if (auto.ok) {
-            setStallName(first.name)
-            localStorage.setItem('upitra_kasir_session', JSON.stringify({
-              authenticated: true,
-              role: 'tenant',
-              tenantId: first.id,
-              stall: first.name,
-            }))
-            loadMenu()
-            loadToday()
-            return
-          }
-        }
-      } catch {}
-
-      if (localStall) {
-        setStallName(localStall)
-        return
-      }
       navigate('/scan/masuk')
     } catch {
-      if (localStall) {
-        setStallName(localStall)
-        return
-      }
       navigate('/scan/masuk')
     } finally {
       setAuthLoading(false)
@@ -497,6 +439,12 @@ export default function ScanPage() {
             {view === 'scan' && (
               <>
                 {/* Mode toggle */}
+                {window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-800 text-[11px] p-2.5 rounded-xl flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                    <span>Akses HTTP: Browser HP membatasi kamera di HTTP. Buka via HTTPS atau gunakan tab <b>Ketik Kode</b> di bawah.</span>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setInputMode('camera')}
