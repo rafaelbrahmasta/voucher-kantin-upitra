@@ -156,9 +156,14 @@ pub async fn run_issue_vouchers(
 
         issued_count += 1;
         let mail_note = if email_sent { "Email Terkirim" } else { "Email Tertunda" };
+        let code_info = if cfg.mail_driver == "log" || cfg.env == "dev" {
+            format!(" | KODE KASIR: {}", short_code)
+        } else {
+            String::new()
+        };
         details.push(format!(
-            "Voucher #{} [Rp5.000] sukses terbit ({}) -> {} ({})",
-            voucher_id, mail_note, staff_name, staff_email
+            "Voucher #{} [Rp5.000] ({}) -> {} ({}){}",
+            voucher_id, mail_note, staff_name, staff_email, code_info
         ));
     }
 
