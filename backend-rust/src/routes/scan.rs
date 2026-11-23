@@ -4,6 +4,7 @@ use axum::Json;
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use sqlx::Row;
 use std::sync::Arc;
 use time::Duration as TimeDuration;
 
@@ -62,6 +63,7 @@ pub async fn handle_scan_me(
 #[derive(Deserialize)]
 pub struct PairRequest {
     pub code: Option<String>,
+    pub tenant_id: Option<i64>,
 }
 
 #[derive(Serialize)]
@@ -97,7 +99,44 @@ pub async fn handle_scan_pair(
     let now_unix = Utc::now().timestamp();
     let exp_unix = now_unix + (30 * 24 * 3600); // 30 hari
 
-    // Pair HANYA via kode pairing 10 karakter yang sah
+    // Opsi 1: Mode Cepat / Dev / Uji Coba jika tenant_id dikirimkan langsung
+    if let Some(t_id) = payload.tenant_id {
+        let tenant_row = sqlx::query("SELECT id, name, session_version FROM tenants WHERE id = $1 AND is_active")
+            .bind(t_id)
+            .fetch_optional(&state.pool)
+            .await;
+        if let Ok(Some(row)) = tenant_row {
+            let ver: i32 = row.get("session_version");
+            let name: String = row.get("name");
+            state.rate_limiter_pair.reset(&client_ip).await;
+            let sess = TenantSession { tenant_id: t_id, version: ver };
+            let token = crypto::encode_tenant_session(&state.config.qr_key, &sess, exp_unix);
+
+            let is_https = state.config.env != "dev";
+            let mut cookie_builder = Cookie::build((TENANT_COOKIE, token))
+                .path("/")
+                .http_only(true)
+                .max_age(TimeDuration::days(30));
+
+            if is_https {
+                cookie_builder = cookie_builder.same_site(SameSite::None).secure(true);
+            } else {
+                cookie_builder = cookie_builder.same_site(SameSite::Lax).secure(false);
+            }
+
+            return Ok((
+                jar.add(cookie_builder.build()),
+                Json(PairResponse {
+                    ok: true,
+                    tenant_id: Some(t_id),
+                    stall: Some(name),
+                    error: None,
+                }),
+            ));
+        }
+    }
+
+    // Opsi 2: Pair via kode pairing 10 karakter yang sah
     let raw_code = payload.code.unwrap_or_default().trim().to_string();
     if raw_code.is_empty() {
         return Err((

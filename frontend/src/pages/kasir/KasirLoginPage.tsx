@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { QrCode, ArrowRight, Loader2, KeyRound } from 'lucide-react'
+import { QrCode, ArrowRight, Loader2, KeyRound, Store } from 'lucide-react'
 import { api } from '../../services/api'
 
 export default function KasirLoginPage() {
@@ -8,6 +8,24 @@ export default function KasirLoginPage() {
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [tenantList, setTenantList] = useState<Array<{ id: number; name: string; stall: string }>>([])
+  const [loadingTenants, setLoadingTenants] = useState(false)
+
+  useEffect(() => {
+    loadTenants()
+  }, [])
+
+  const loadTenants = async () => {
+    try {
+      setLoadingTenants(true)
+      const res = await api.kasir.getTenants()
+      setTenantList(res.tenants || [])
+    } catch (err) {
+      console.error('Failed to load tenants', err)
+    } finally {
+      setLoadingTenants(false)
+    }
+  }
 
   // Format input: kode pairing 10 karakter dengan strip setelah 5 karakter (contoh: 7M4QX-P8RTK)
   const handleCodeChange = (val: string) => {
@@ -43,6 +61,29 @@ export default function KasirLoginPage() {
       }
     } catch (err: any) {
       setError(err.message || 'Gagal terhubung ke server. Pastikan HP terhubung ke jaringan kampus.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleQuickLogin = async (tenantId: number, stallName: string) => {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await api.kasir.pair({ tenant_id: tenantId })
+      if (res.ok) {
+        localStorage.setItem('upitra_kasir_session', JSON.stringify({
+          authenticated: true,
+          role: 'tenant',
+          tenantId: res.tenant_id || tenantId,
+          stall: res.stall || stallName,
+        }))
+        navigate('/scan')
+      } else {
+        setError(res.error || 'Gagal menghubungkan ke stan kantin')
+      }
+    } catch (err: any) {
+      setError(err.message || 'Gagal menghubungkan ke stan kantin')
     } finally {
       setLoading(false)
     }
@@ -105,7 +146,7 @@ export default function KasirLoginPage() {
           <button
             type="submit"
             disabled={loading || code.replace(/[^a-zA-Z0-9]/g, '').length !== 10}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/25 transition-all disabled:opacity-40"
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/25 transition-all disabled:opacity-40 cursor-pointer"
           >
             {loading ? (
               <>
@@ -120,6 +161,37 @@ export default function KasirLoginPage() {
             )}
           </button>
         </form>
+
+        {/* Quick Select for Trial / Uji Coba Langsung */}
+        {tenantList.length > 0 && (
+          <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-2.5">
+              Atau Pilih Stan Langsung (Trial / Uji Coba):
+            </span>
+            <div className="space-y-2">
+              {tenantList.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleQuickLogin(t.id, t.name)}
+                  disabled={loading}
+                  className="w-full py-2.5 px-3 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-900 text-xs font-bold transition-all flex items-center justify-between cursor-pointer group"
+                >
+                  <div className="flex items-center gap-2 text-left">
+                    <Store className="w-4 h-4 text-sky-600 shrink-0" />
+                    <div>
+                      <div className="font-extrabold leading-tight">{t.name}</div>
+                      {t.stall && <div className="text-[10px] text-slate-500 font-normal">{t.stall}</div>}
+                    </div>
+                  </div>
+                  <span className="text-[10px] bg-white group-hover:bg-sky-600 group-hover:text-white text-sky-700 px-2.5 py-1 rounded-lg border border-sky-200 font-bold transition-colors">
+                    Buka Scanner →
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="text-center text-xs text-slate-500 pb-4 font-medium">
