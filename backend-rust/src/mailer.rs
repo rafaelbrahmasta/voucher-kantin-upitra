@@ -36,7 +36,7 @@ pub fn generate_qr_png_base64(payload: &str) -> Result<String, String> {
 }
 
 /// Template Email Resmi UPITRA bertema Blue Sky & White
-pub fn build_email_html(data: &VoucherEmailData) -> String {
+pub fn build_email_html(data: &VoucherEmailData, qr_png_b64: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
 <html lang="id">
@@ -61,14 +61,14 @@ pub fn build_email_html(data: &VoucherEmailData) -> String {
       <td style="padding: 24px 28px 20px 28px;">
         <p style="margin: 0 0 12px 0; font-size: 14px; line-height: 1.5;">Yth. Bapak/Ibu <strong>{}</strong>,</p>
         <p style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.6; color: #475569;">
-          Berikut adalah voucher subsidi makan siang Anda untuk hari ini, <strong>{}</strong>. Tunjukkan QR Code di bawah ini kepada kasir stan kantin kampus.
+          Berikut adalah voucher subsidi makan siang Anda untuk hari ini, <strong>{}</strong>. Silakan tunjukkan QR Code atau sebutkan Nomor Kode di bawah ini kepada kasir stan kantin kampus UPITRA.
         </p>
 
         <!-- Informasi Voucher -->
         <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 16px; margin-bottom: 20px; padding: 14px 18px;">
           <tr>
             <td style="font-size: 12px; color: #64748b; padding-bottom: 6px;">Nominal Subsidi:</td>
-            <td align="right" style="font-size: 15px; font-weight: 800; color: #0284c7; padding-bottom: 6px;">Rp 5.000</td>
+            <td align="right" style="font-size: 16px; font-weight: 800; color: #0284c7; padding-bottom: 6px;">Rp 5.000</td>
           </tr>
           <tr>
             <td style="font-size: 12px; color: #64748b;">Jam Berlaku:</td>
@@ -76,18 +76,28 @@ pub fn build_email_html(data: &VoucherEmailData) -> String {
           </tr>
         </table>
 
-        <!-- QR Code Container -->
-        <div style="text-align: center; margin: 24px 0; padding: 18px; background-color: #ffffff; border: 2px dashed #38bdf8; border-radius: 20px;">
-          <img src="cid:voucher-qr" alt="QR Code Voucher" width="220" height="220" style="display: block; margin: 0 auto; border-radius: 8px;" />
-          <p style="margin: 12px 0 0 0; font-size: 11px; color: #64748b; font-weight: 500;">
-            Arahkan layar ini ke kamera kasir stan kantin
+        <!-- Kartu Utama: QR Code & Nomor Kode Berdampingan -->
+        <div style="text-align: center; margin: 20px 0; padding: 22px 18px; background-color: #ffffff; border: 2px dashed #0284c7; border-radius: 20px;">
+          <!-- Visual QR Code -->
+          <div style="background-color: #ffffff; padding: 12px; display: inline-block; border-radius: 16px; box-shadow: 0 4px 16px rgba(2, 132, 199, 0.12); border: 1px solid #e0f2fe;">
+            <img src="data:image/png;base64,{}" alt="QR Code Voucher" width="220" height="220" style="display: block; margin: 0 auto; border-radius: 8px;" />
+          </div>
+          <p style="margin: 12px 0 16px 0; font-size: 12px; color: #0284c7; font-weight: 700;">
+            📷 Arahkan QR Code di atas ke kamera kasir stan
           </p>
-        </div>
 
-        <!-- Kode Darurat -->
-        <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 12px; text-align: center; margin-bottom: 20px;">
-          <span style="font-size: 11px; color: #166534; font-weight: 600; display: block; margin-bottom: 4px;">KODE CADANGAN DARURAT (Bila Kamera HP Kasir Bermasalah):</span>
-          <span style="font-family: Consolas, monospace; font-size: 22px; font-weight: 800; letter-spacing: 4px; color: #15803d;">{}</span>
+          <!-- Kotak Nomor Kode Voucher Resmi (Dibuatkan nomor kode berdampingan dengan QR) -->
+          <div style="background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: 14px; padding: 14px 12px; text-align: center;">
+            <span style="font-size: 11px; color: #166534; font-weight: 700; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+              NOMOR KODE VOUCHER (PILIHAN CADANGAN / MANUAL):
+            </span>
+            <span style="font-family: Consolas, 'Courier New', monospace; font-size: 24px; font-weight: 900; letter-spacing: 4px; color: #15803d; display: block;">
+              {}
+            </span>
+            <span style="font-size: 10px; color: #15803d; margin-top: 4px; display: block; font-weight: 500;">
+              Sebutkan kode di atas jika kasir stan menginput manual / tanpa kamera
+            </span>
+          </div>
         </div>
 
         <p style="margin: 0; font-size: 11px; line-height: 1.5; color: #94a3b8; text-align: center;">
@@ -108,7 +118,7 @@ pub fn build_email_html(data: &VoucherEmailData) -> String {
   </table>
 </body>
 </html>"#,
-        data.staff_name, data.date_str, data.short_code
+        data.staff_name, data.date_str, qr_png_b64, data.short_code
     )
 }
 
@@ -129,6 +139,32 @@ pub async fn send_voucher_email(cfg: &Config, data: &VoucherEmailData<'_>) -> Re
                 data.date_str,
                 data.short_code
             );
+
+            // Cetak juga visual ASCII QR Code ke konsol log
+            if let Ok(code) = QrCode::new(data.qr_payload.as_bytes()) {
+                let string = code
+                    .render::<char>()
+                    .quiet_zone(false)
+                    .module_dimensions(2, 1)
+                    .build();
+                tracing::info!(
+                    "📱 [QR CODE PREVIEW UNTUK {} (Kode: {})]\n{}",
+                    data.staff_name,
+                    data.short_code,
+                    string
+                );
+            }
+
+            // Simpan file preview HTML lengkap (QR + Nomor Kode)
+            let preview_html = build_email_html(data, &qr_png_b64);
+            let preview_dir = std::path::Path::new("target/voucher_previews");
+            if let Ok(()) = std::fs::create_dir_all(preview_dir) {
+                let safe_email = data.staff_email.replace('@', "_at_").replace('.', "_");
+                let file_path = preview_dir.join(format!("{}_{}.html", data.date_str, safe_email));
+                let _ = std::fs::write(&file_path, preview_html);
+                tracing::info!("📄 [PREVIEW FILE] Kartu voucher tersimpan di {}", file_path.display());
+            }
+
             Ok(())
         }
     }
@@ -177,7 +213,7 @@ async fn send_via_microsoft_graph(
 
     // 2. Kirim Pesan Email via Microsoft Graph API /sendMail
     let send_url = format!("https://graph.microsoft.com/v1.0/users/{}/sendMail", mail_from);
-    let html_content = build_email_html(data);
+    let html_content = build_email_html(data, qr_png_b64);
 
     let message_payload = json!({
         "message": {
@@ -281,7 +317,7 @@ async fn send_via_smtp(
     send_cmd(&mut stream, "DATA\r\n").await?;
 
     let boundary = "----=_Part_UPITRA_VOUCHER_2026";
-    let html_content = build_email_html(data);
+    let html_content = build_email_html(data, qr_png_b64);
 
     let raw_email = format!(
         "From: {}\r\n\

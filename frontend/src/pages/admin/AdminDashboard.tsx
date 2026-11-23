@@ -13,6 +13,10 @@ import {
   ArrowUpRight,
   Send,
   Loader2,
+  QrCode,
+  Eye,
+  X,
+  Copy,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
@@ -24,6 +28,40 @@ export default function AdminDashboard() {
   const [issuing, setIssuing] = useState(false)
   const [issueResult, setIssueResult] = useState<{ message: string; details: string[]; failed_count?: number } | null>(null)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [previewModalOpen, setPreviewModalOpen] = useState(false)
+  const [previewData, setPreviewData] = useState<{
+    staff_name: string
+    staff_email: string
+    unit: string
+    date_str: string
+    amount: number
+    short_code: string
+    qr_payload: string
+    qr_png_base64: string
+    valid_hours: string
+    auto_schedule: string
+  } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleOpenPreview = async () => {
+    try {
+      setPreviewLoading(true)
+      setPreviewModalOpen(true)
+      const res = await api.admin.getVoucherPreview()
+      setPreviewData(res)
+    } catch (err) {
+      console.error('Failed to load preview', err)
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const copyShortCode = (code: string) => {
+    navigator.clipboard.writeText(code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     loadSummary(date)
@@ -92,6 +130,14 @@ export default function AdminDashboard() {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
           <button
+            onClick={handleOpenPreview}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 text-sky-700 hover:text-sky-800 text-xs font-bold border border-sky-200 shadow-xs transition-colors cursor-pointer"
+            title="Lihat Format Tampilan Voucher (QR & Kode)"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>Preview Voucher (QR & Kode)</span>
+          </button>
+          <button
             onClick={handleIssueVouchers}
             disabled={issuing}
             className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all disabled:opacity-50"
@@ -109,6 +155,33 @@ export default function AdminDashboard() {
             )}
           </button>
         </div>
+      </div>
+
+      {/* Auto-Scheduler Info Banner */}
+      <div className="bg-gradient-to-r from-sky-50 via-sky-50/50 to-white border border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-600/20">
+            <Clock className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900">Jadwal Penerbitan Voucher Otomatis</span>
+              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
+                AKTIF (10:00 WIB)
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-600 mt-0.5">
+              Sistem backend otomatis menerbitkan voucher setiap hari kerja (Senin–Jumat) tepat pukul 10:00 WIB ke email dosen & staf aktif. Voucher menyertakan <strong>Gambar QR Code</strong> resmi beserta <strong>Nomor Kode Cadangan</strong>.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleOpenPreview}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-sky-50 text-sky-700 border border-sky-300 text-xs font-bold shadow-xs transition-all cursor-pointer"
+        >
+          <QrCode className="w-3.5 h-3.5" />
+          Lihat Contoh Voucher
+        </button>
       </div>
 
       {/* Primary KPI Grid */}
@@ -329,6 +402,129 @@ export default function AdminDashboard() {
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 transition-colors shadow-sm"
               >
                 Tutup & Perbarui Ringkasan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Preview Desain Voucher (QR & Nomor Kode) */}
+      {previewModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-sky-200 overflow-hidden">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-black text-sm">
+                  UP
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm leading-tight">Preview Voucher Dosen & Staf</h3>
+                  <p className="text-[10px] text-sky-100">Desain resmi yang dikirim ke email penerima</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 bg-slate-50/50">
+              {previewLoading ? (
+                <div className="py-16 text-center text-slate-500">
+                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600 mb-2" />
+                  <p className="text-xs font-semibold">Membuat preview voucher & QR Code...</p>
+                </div>
+              ) : previewData ? (
+                <div className="space-y-4">
+                  {/* Kartu Voucher Digital */}
+                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-5 text-center shadow-sm">
+                    {/* Badge Nilai & Jam */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 text-xs">
+                      <div className="text-left">
+                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Subsidi Kampus</span>
+                        <span className="font-black text-sky-600 text-base">Rp 5.000</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Jam Berlaku</span>
+                        <span className="font-bold text-slate-700">10.00 – 16.00 WIB</span>
+                      </div>
+                    </div>
+
+                    {/* QR Code Container */}
+                    <div className="bg-white p-3 rounded-2xl inline-block shadow-md border border-sky-100 mb-2">
+                      {previewData.qr_png_base64 ? (
+                        <img
+                          src={`data:image/png;base64,${previewData.qr_png_base64}`}
+                          alt="QR Code Voucher"
+                          className="w-48 h-48 mx-auto rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-48 h-48 flex items-center justify-center bg-slate-100 text-slate-400 text-xs rounded-lg">
+                          QR Code
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] font-bold text-sky-700 flex items-center justify-center gap-1">
+                      <span>📷</span> Tunjukkan QR Code ini ke kamera kasir stan kantin
+                    </p>
+
+                    {/* Nomor Kode Cadangan (Berdampingan dengan QR) */}
+                    <div className="mt-4 bg-emerald-50 border border-emerald-300 rounded-xl p-3 text-center">
+                      <span className="text-[10px] text-emerald-800 font-bold block uppercase tracking-wider mb-1">
+                        NOMOR KODE VOUCHER (PILIHAN MANUAL):
+                      </span>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="font-mono text-xl font-black text-emerald-700 tracking-wider">
+                          {previewData.short_code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => copyShortCode(previewData.short_code)}
+                          className="p-1 hover:bg-emerald-100 rounded text-emerald-700 transition-colors cursor-pointer"
+                          title="Salin Nomor Kode"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {copied && (
+                        <span className="text-[10px] text-emerald-600 font-bold block mt-1">
+                          ✓ Berhasil disalin!
+                        </span>
+                      )}
+                      <span className="text-[10px] text-emerald-700/80 block mt-1">
+                        Kasir dapat menginput kode di atas jika kamera bermasalah
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Informasi Dosen & Jadwal */}
+                  <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-[11px] space-y-1 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Penerima Contoh:</span>
+                      <span className="font-bold text-slate-800">{previewData.staff_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Unit:</span>
+                      <span className="font-medium text-slate-700">{previewData.unit}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-sky-200/50 pt-1 mt-1">
+                      <span className="text-slate-400">Jadwal Auto-Terbit:</span>
+                      <span className="font-bold text-sky-700">{previewData.auto_schedule}</span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setPreviewModalOpen(false)}
+                className="w-full mt-5 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
+              >
+                Tutup Preview
               </button>
             </div>
           </div>

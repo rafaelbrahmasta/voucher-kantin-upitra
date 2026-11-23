@@ -515,14 +515,17 @@ export default function ScanPage() {
                 {inputMode === 'manual' && (
                   <form onSubmit={handleManualSubmit} className="space-y-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-2">
-                        Kode pendek (xxxx-xxxx) atau teks QR lengkap
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        Nomor Kode Voucher atau Teks QR
                       </label>
+                      <p className="text-[11px] text-slate-500 mb-2">
+                        Masukkan Nomor Kode yang tertera di bawah gambar QR Code pada email staf penerima.
+                      </p>
                       <input
                         type="text"
                         value={manualCode}
                         onChange={(e) => setManualCode(e.target.value)}
-                        placeholder="Contoh: k7m4-qxp8"
+                        placeholder="Contoh: UP-2026-X89K2P atau kode dari email"
                         className="w-full bg-slate-50 border border-slate-300 text-slate-900 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 font-mono font-bold"
                         autoComplete="off"
                         autoFocus
@@ -531,7 +534,7 @@ export default function ScanPage() {
                     <button
                       type="submit"
                       disabled={!manualCode.trim() || scanning}
-                      className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-xs shadow-md shadow-sky-600/20 transition-all"
+                      className="w-full flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-bold rounded-xl py-3 text-xs shadow-md shadow-sky-600/20 transition-all cursor-pointer"
                     >
                       {scanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ChevronRight className="w-4 h-4" />}
                       {scanning ? 'Memproses...' : 'Proses Voucher'}

@@ -80,6 +80,19 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ date, force, resend }),
       }),
+    getVoucherPreview: () =>
+      request<{
+        staff_name: string
+        staff_email: string
+        unit: string
+        date_str: string
+        amount: number
+        short_code: string
+        qr_payload: string
+        qr_png_base64: string
+        valid_hours: string
+        auto_schedule: string
+      }>('/admin/voucher-preview'),
 
     // Tenants
     getTenants: () => request<{ tenants: Tenant[] }>('/admin/tenants'),

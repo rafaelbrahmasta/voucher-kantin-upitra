@@ -524,6 +524,32 @@ pub async fn handle_admin_issue_vouchers(
     Ok(Json(serde_json::to_value(summary).unwrap()))
 }
 
+pub async fn handle_admin_voucher_preview(
+    State(_state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today = chrono::Utc::now().with_timezone(&wib).date_naive();
+    let date_str = today.format("%Y-%m-%d").to_string();
+
+    let sample_code = "UP-2026-X89K2P";
+    let sample_payload = format!("UPITRA:SAMPLE:{}", today.format("%Y%m%d"));
+    let qr_png_base64 = crate::mailer::generate_qr_png_base64(&sample_payload)
+        .unwrap_or_default();
+
+    Ok(Json(serde_json::json!({
+        "staff_name": "Dr. Ir. Dosen UPITRA, M.Kom",
+        "staff_email": "dosen.sample@upitra.ac.id",
+        "unit": "Fakultas Teknologi Informasi",
+        "date_str": date_str,
+        "amount": 5000,
+        "short_code": sample_code,
+        "qr_payload": sample_payload,
+        "qr_png_base64": qr_png_base64,
+        "valid_hours": "10.00 – 16.00 WIB",
+        "auto_schedule": "Setiap Hari Kerja Pukul 10:00 WIB"
+    })))
+}
+
 // ── Admin Tenant Menu Items CRUD ──────────────────────────────────
 
 pub async fn handle_admin_tenant_menu_list(

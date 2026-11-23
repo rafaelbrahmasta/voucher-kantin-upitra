@@ -1,5 +1,6 @@
 use axum::routing::{get, post, put};
 use axum::{middleware, Router};
+use chrono::{Datelike, Timelike};
 use std::path::Path;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -55,6 +56,60 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Ok(count) = db::auto_expire_vouchers(&expire_pool).await {
                 if count > 0 {
                     tracing::info!("Auto-expired {} voucher(s) melewati jam berlaku", count);
+                }
+            }
+        }
+    });
+
+    // Background job: Otomatisasi penerbitan voucher harian tepat pukul 10:00 WIB setiap hari kerja (Senin-Jumat)
+    let auto_issue_pool = pool.clone();
+    let auto_issue_cfg = cfg.clone();
+    tokio::spawn(async move {
+        let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+        let mut last_issued_date: Option<chrono::NaiveDate> = None;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
+
+        loop {
+            interval.tick().await;
+
+            let now_wib = chrono::Utc::now().with_timezone(&wib);
+            let today = now_wib.date_naive();
+            let is_weekday = now_wib.weekday() != chrono::Weekday::Sat && now_wib.weekday() != chrono::Weekday::Sun;
+
+            // Jam operasional penerbitan voucher: mulai pukul 10:00 WIB hingga sebelum 16:00 WIB
+            if is_weekday && now_wib.hour() >= 10 && now_wib.hour() < 16 {
+                if last_issued_date != Some(today) {
+                    tracing::info!(
+                        "⏰ [AUTO-SCHEDULER 10:00 WIB] Memulai penerbitan voucher otomatis harian untuk tanggal {}",
+                        today
+                    );
+
+                    match voucher_kantin_backend::issuer::run_issue_vouchers(
+                        &auto_issue_pool,
+                        &auto_issue_cfg,
+                        Some(today),
+                        false, // force=false (hormati hari libur nasional)
+                        false, // resend=false (hanya terbitkan yang belum terbit/retry yang pending)
+                    )
+                    .await
+                    {
+                        Ok(summary) => {
+                            tracing::info!(
+                                "✅ [AUTO-SCHEDULER 10:00 WIB] Selesai: {} voucher diterbitkan & dikirim, {} dilewati, {} gagal dari total {} staf aktif",
+                                summary.issued_count,
+                                summary.skipped_count,
+                                summary.failed_count,
+                                summary.total_staff
+                            );
+                            last_issued_date = Some(today);
+                        }
+                        Err(e) => {
+                            tracing::warn!("⚠️ [AUTO-SCHEDULER 10:00 WIB] Dilewati/gagal: {}", e);
+                            if e.contains("libur") || e.contains("akhir pekan") {
+                                last_issued_date = Some(today);
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -143,6 +198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/tenants/:id/menu/:menu_id", put(routes::admin::handle_admin_tenant_menu_update).delete(routes::admin::handle_admin_tenant_menu_delete))
         .route("/transactions", get(routes::admin::handle_transactions))
         .route("/issue-vouchers", post(routes::admin::handle_admin_issue_vouchers))
+        .route("/voucher-preview", get(routes::admin::handle_admin_voucher_preview))
         .route_layer(middleware::from_fn_with_state(state.clone(), routes::auth::admin_auth_middleware));
 
     // ── Rute Terproteksi: Biro Keuangan ───────────────────────────────

@@ -105,14 +105,28 @@ Server akan aktif di: **`http://localhost:8080`**
 
 ---
 
-## 🎟️ Penerbitan Voucher Harian (Job / Worker)
+## 🎟️ Penerbitan Voucher Harian (Otomatis & Manual)
 
-Untuk menerbitkan voucher harian (Senin-Jumat, mengecualikan hari libur kalender):
+### ⏰ 1. Otomatisasi Pukul 10:00 WIB (Default)
+Backend server secara otomatis menjalankan worker penerbitan voucher harian **setiap hari kerja (Senin–Jumat) tepat pukul 10:00 WIB** (waktu operasional voucher kantin kampus 10:00 – 16:00 WIB).
+- Voucher diterbitkan untuk seluruh dosen & staf yang berstatus aktif.
+- Menghormati kalender hari libur nasional (tabel `holidays`) dan akhir pekan.
+- Bersifat idempoten: voucher yang sudah berhasil dikirim tidak akan diproses ulang.
+- **Admin IT tidak perlu mengklik tombol manual setiap hari.**
 
-### Opsi A: Lewat Dashboard Admin IT
-Buka `http://localhost:8080/admin`, lalu klik tombol **"Terbitkan Voucher"** di bagian atas (secara default hanya menerbitkan staf yang belum memiliki voucher atau yang pengiriman emailnya tertunda/gagal).
+### 📱 2. Desain Kartu Voucher (QR Code & Nomor Kode Berdampingan)
+Setiap email voucher resmi yang diterima dosen/staf memuat:
+- **Gambar QR Code Resmi**: Di-render langsung menggunakan format gambar beresolusi tinggi (Base64 PNG embedded) sehingga langsung tampil di semua perangkat tanpa risiko terblokir sebagai lampiran terpisah.
+- **Nomor Kode Voucher Cadangan**: Kode alfanumerik unik (misal `UP-2026-X89K2P`) dengan tipografi monospace jelas, tepat di bawah QR Code.
+- Kasir stan kantin dapat memindai QR Code menggunakan kamera HP, atau menginput Nomor Kode secara manual jika kamera kasir mengalami kendala.
+- Format kartu voucher dapat dipratinjau langsung di portal Admin melalui tombol **"Preview Voucher (QR & Kode)"**.
 
-### Opsi B: Lewat CLI / Systemd Timer
+### 🛠️ 3. Penerbitan Cadangan Manual (Bila Dibutuhkan)
+
+#### Opsi A: Lewat Dashboard Admin IT
+Buka `http://localhost:8080/admin`, lalu klik tombol **"Terbitkan Voucher"** di bagian atas (secara default hanya memproses staf yang belum memiliki voucher atau yang pengiriman emailnya tertunda/gagal).
+
+#### Opsi B: Lewat CLI / Systemd Timer
 ```bash
 cd backend-rust
 
