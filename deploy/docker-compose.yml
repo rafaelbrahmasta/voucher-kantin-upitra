@@ -17,8 +17,9 @@ services:
       - ../migrations/0001_init.sql:/docker-entrypoint-initdb.d/0001_init.sql:ro
       - ../migrations/0002_admin_master.sql:/docker-entrypoint-initdb.d/0002_admin_master.sql:ro
       - ../migrations/0003_admin_login.sql:/docker-entrypoint-initdb.d/0003_admin_login.sql:ro
-      - ./dev_seed.sql:/docker-entrypoint-initdb.d/0004_dev_seed.sql:ro
-      - ./dev_menu_seed.sql:/docker-entrypoint-initdb.d/0005_dev_menu_seed.sql:ro
+      - ../migrations/0004_payout_status.sql:/docker-entrypoint-initdb.d/0004_payout_status.sql:ro
+      - ./dev_seed.sql:/docker-entrypoint-initdb.d/0005_dev_seed.sql:ro
+      - ./dev_menu_seed.sql:/docker-entrypoint-initdb.d/0006_dev_menu_seed.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U voucher -d voucher"]
       interval: 5s
