@@ -67,6 +67,16 @@ export default function AdminDashboard() {
     loadSummary(date)
   }, [date])
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreviewModalOpen(false)
+    }
+    if (previewModalOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [previewModalOpen])
+
   const loadSummary = async (selectedDate: string) => {
     try {
       setLoading(true)
@@ -410,75 +420,83 @@ export default function AdminDashboard() {
 
       {/* Modal Preview Desain Voucher (QR & Nomor Kode) */}
       {previewModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-sky-200 overflow-hidden">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setPreviewModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl max-w-sm w-full my-auto shadow-2xl border border-sky-200 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-6 py-4 text-white flex items-center justify-between">
+            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-black text-sm">
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-black text-xs">
                   UP
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-sm leading-tight">Preview Voucher Dosen & Staf</h3>
-                  <p className="text-[10px] text-sky-100">Desain resmi yang dikirim ke email penerima</p>
+                  <h3 className="font-extrabold text-xs leading-tight">Preview Voucher Dosen & Staf</h3>
+                  <p className="text-[10px] text-sky-100">Desain resmi yang dikirim ke email</p>
                 </div>
               </div>
               <button
+                type="button"
                 onClick={() => setPreviewModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Tutup (Esc)"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 bg-slate-50/50">
+            <div className="p-4 overflow-y-auto space-y-3 bg-slate-50/50">
               {previewLoading ? (
-                <div className="py-16 text-center text-slate-500">
-                  <Loader2 className="w-8 h-8 animate-spin mx-auto text-sky-600 mb-2" />
+                <div className="py-12 text-center text-slate-500">
+                  <Loader2 className="w-7 h-7 animate-spin mx-auto text-sky-600 mb-2" />
                   <p className="text-xs font-semibold">Membuat preview voucher & QR Code...</p>
                 </div>
               ) : previewData ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Kartu Voucher Digital */}
-                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-5 text-center shadow-sm">
+                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
                     {/* Badge Nilai & Jam */}
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 text-xs">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
                       <div className="text-left">
-                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Subsidi Kampus</span>
-                        <span className="font-black text-sky-600 text-base">Rp 5.000</span>
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Subsidi Kampus</span>
+                        <span className="font-black text-sky-600 text-sm">Rp 5.000</span>
                       </div>
                       <div className="text-right">
-                        <span className="text-[10px] text-slate-400 font-semibold block uppercase">Jam Berlaku</span>
-                        <span className="font-bold text-slate-700">10.00 – 16.00 WIB</span>
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Jam Berlaku</span>
+                        <span className="font-bold text-slate-700 text-xs">10.00 – 16.00 WIB</span>
                       </div>
                     </div>
 
                     {/* QR Code Container */}
-                    <div className="bg-white p-3 rounded-2xl inline-block shadow-md border border-sky-100 mb-2">
+                    <div className="bg-white p-2 rounded-xl inline-block shadow-sm border border-sky-100 mb-1">
                       {previewData.qr_png_base64 ? (
                         <img
                           src={`data:image/png;base64,${previewData.qr_png_base64}`}
                           alt="QR Code Voucher"
-                          className="w-48 h-48 mx-auto rounded-lg"
+                          className="w-36 h-36 mx-auto rounded-lg"
                         />
                       ) : (
-                        <div className="w-48 h-48 flex items-center justify-center bg-slate-100 text-slate-400 text-xs rounded-lg">
+                        <div className="w-36 h-36 flex items-center justify-center bg-slate-100 text-slate-400 text-xs rounded-lg">
                           QR Code
                         </div>
                       )}
                     </div>
-                    <p className="text-[11px] font-bold text-sky-700 flex items-center justify-center gap-1">
-                      <span>📷</span> Tunjukkan QR Code ini ke kamera kasir stan kantin
+                    <p className="text-[10px] font-bold text-sky-700 flex items-center justify-center gap-1 mb-2">
+                      <span>📷</span> Tunjukkan QR Code ke kamera kasir
                     </p>
 
                     {/* Nomor Kode Cadangan (Berdampingan dengan QR) */}
-                    <div className="mt-4 bg-emerald-50 border border-emerald-300 rounded-xl p-3 text-center">
-                      <span className="text-[10px] text-emerald-800 font-bold block uppercase tracking-wider mb-1">
-                        NOMOR KODE VOUCHER (PILIHAN MANUAL):
+                    <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 text-center">
+                      <span className="text-[9px] text-emerald-800 font-bold block uppercase tracking-wider mb-0.5">
+                        NOMOR KODE VOUCHER (MANUAL):
                       </span>
                       <div className="flex items-center justify-center gap-2">
-                        <span className="font-mono text-xl font-black text-emerald-700 tracking-wider">
+                        <span className="font-mono text-lg font-black text-emerald-700 tracking-wider">
                           {previewData.short_code}
                         </span>
                         <button
@@ -487,22 +505,22 @@ export default function AdminDashboard() {
                           className="p-1 hover:bg-emerald-100 rounded text-emerald-700 transition-colors cursor-pointer"
                           title="Salin Nomor Kode"
                         >
-                          <Copy className="w-4 h-4" />
+                          <Copy className="w-3.5 h-3.5" />
                         </button>
                       </div>
                       {copied && (
-                        <span className="text-[10px] text-emerald-600 font-bold block mt-1">
+                        <span className="text-[9px] text-emerald-600 font-bold block">
                           ✓ Berhasil disalin!
                         </span>
                       )}
-                      <span className="text-[10px] text-emerald-700/80 block mt-1">
+                      <span className="text-[9px] text-emerald-700/80 block mt-0.5">
                         Kasir dapat menginput kode di atas jika kamera bermasalah
                       </span>
                     </div>
                   </div>
 
                   {/* Informasi Dosen & Jadwal */}
-                  <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-[11px] space-y-1 text-slate-600">
+                  <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-2.5 text-[11px] space-y-0.5 text-slate-600">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Penerima Contoh:</span>
                       <span className="font-bold text-slate-800">{previewData.staff_name}</span>
@@ -518,11 +536,14 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ) : null}
+            </div>
 
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100 shrink-0">
               <button
                 type="button"
                 onClick={() => setPreviewModalOpen(false)}
-                className="w-full mt-5 py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
+                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
               >
                 Tutup Preview
               </button>

@@ -16,9 +16,11 @@ import {
   RefreshCw,
   Ticket,
   Copy,
+  QrCode,
+  Loader2,
 } from 'lucide-react'
 import { api } from '../../services/api'
-import { Staff } from '../../types'
+import { Staff, StaffVoucherData } from '../../types'
 
 export default function AdminStaffPage() {
   const [staffList, setStaffList] = useState<Staff[]>([])
@@ -40,6 +42,36 @@ export default function AdminStaffPage() {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [successToast, setSuccessToast] = useState('')
+
+  // Voucher Card Popup State
+  const [selectedStaffVoucher, setSelectedStaffVoucher] = useState<StaffVoucherData | null>(null)
+  const [voucherModalOpen, setVoucherModalOpen] = useState(false)
+  const [loadingVoucherModal, setLoadingVoucherModal] = useState(false)
+  const [voucherCopied, setVoucherCopied] = useState(false)
+
+  const handleViewVoucherCard = async (staff: Staff) => {
+    try {
+      setLoadingVoucherModal(true)
+      setVoucherModalOpen(true)
+      const data = await api.admin.getStaffVoucher(staff.id)
+      setSelectedStaffVoucher(data)
+    } catch (err: any) {
+      alert(err.message || 'Gagal memuat kartu voucher')
+      setVoucherModalOpen(false)
+    } finally {
+      setLoadingVoucherModal(false)
+    }
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVoucherModalOpen(false)
+    }
+    if (voucherModalOpen) {
+      window.addEventListener('keydown', handleKeyDown)
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [voucherModalOpen])
 
   useEffect(() => {
     loadStaff()
@@ -359,35 +391,81 @@ export default function AdminStaffPage() {
                       )}
                     </td>
 
-                    {/* Status Voucher Hari Ini & Tombol Kirim Ulang (Anti-Hilang) */}
+                    {/* Status Voucher Hari Ini, Serial Number & Tombol Lihat QR */}
                     <td className="py-3.5 px-4 text-center">
                       {staff.today_voucher_status === 'used' ? (
-                        <span className="inline-flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-emerald-700">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          Terpakai di Stan
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full text-[10px] font-bold text-emerald-700">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                            Terpakai di Stan
+                          </span>
+                          <div className="flex items-center justify-center gap-1.5 mt-0.5">
+                            <span className="font-mono text-xs font-black text-slate-600 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg tracking-wider">
+                              {staff.today_voucher_code || 'VOUCHER'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewVoucherCard(staff)}
+                              title="Lihat detail kartu voucher & QR Code"
+                              className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
+                            >
+                              <QrCode className="w-3 h-3" />
+                              QR
+                            </button>
+                          </div>
+                        </div>
                       ) : staff.today_voucher_status === 'issued' ? (
-                        <div className="inline-flex items-center gap-1.5">
-                          {staff.today_voucher_email_sent ? (
-                            <span className="inline-flex items-center gap-1 bg-sky-50 border border-sky-200 px-2.5 py-1 rounded-full text-[11px] font-bold text-sky-700" title="Voucher aktif dan telah dikirimkan ke email Outlook penerima">
-                              <Ticket className="w-3.5 h-3.5 text-sky-600" />
-                              Terkirim ke Email
+                        <div className="flex flex-col items-center gap-1.5">
+                          {/* Serial Number & Tombol Buka QR Code */}
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span className="font-mono text-xs font-black text-sky-900 bg-sky-100/90 border border-sky-300 px-2 py-0.5 rounded-lg tracking-wider shadow-2xs">
+                              {staff.today_voucher_code || 'VOUCHER'}
                             </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-300 px-2 py-0.5 rounded-full text-[10px] font-bold text-amber-700" title="Email belum terkirim. Klik tombol di samping untuk kirim ulang.">
-                              <AlertCircle className="w-3 h-3 text-amber-600" />
-                              Email Tertunda
-                            </span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => handleResend(staff.id, staff.name, staff.today_voucher_email_sent)}
-                            disabled={resendingId === staff.id}
-                            title="Buat ulang token & kirim ulang email voucher"
-                            className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-sky-600 border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"
-                          >
-                            <RefreshCw className={`w-3 h-3 ${resendingId === staff.id ? 'animate-spin text-sky-600' : ''}`} />
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(staff.today_voucher_code || '')
+                                showToast(`Kode ${staff.today_voucher_code} disalin!`)
+                              }}
+                              title="Salin Nomor Kode"
+                              className="p-1 hover:bg-sky-100 rounded text-sky-700 transition-colors cursor-pointer"
+                            >
+                              <Copy className="w-3 h-3" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleViewVoucherCard(staff)}
+                              title="Lihat QR Code & Kartu Voucher Dosen/Staf ini"
+                              className="inline-flex items-center gap-1 bg-sky-600 hover:bg-sky-700 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-xs transition-colors cursor-pointer"
+                            >
+                              <QrCode className="w-3 h-3" />
+                              Lihat QR
+                            </button>
+                          </div>
+
+                          {/* Status Pengiriman Email & Tombol Kirim Ulang */}
+                          <div className="flex items-center justify-center gap-1 text-[10px]">
+                            {staff.today_voucher_email_sent ? (
+                              <span className="inline-flex items-center gap-1 text-sky-700 font-semibold" title="Voucher aktif & sudah terkirim ke email dosen/staf">
+                                <Ticket className="w-3 h-3 text-sky-600" />
+                                Terkirim ke Email
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Email belum terkirim. Klik tombol refresh untuk kirim ulang">
+                                <AlertCircle className="w-3 h-3 text-amber-600" />
+                                Email Tertunda
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleResend(staff.id, staff.name, staff.today_voucher_email_sent)}
+                              disabled={resendingId === staff.id}
+                              title="Buat ulang token & kirim ulang email voucher"
+                              className="p-0.5 hover:bg-slate-100 rounded text-slate-500 hover:text-sky-600 transition-colors cursor-pointer disabled:opacity-50 ml-1"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${resendingId === staff.id ? 'animate-spin text-sky-600' : ''}`} />
+                            </button>
+                          </div>
                         </div>
                       ) : staff.is_active ? (
                         <span className="text-slate-400 text-xs italic font-medium">Belum Terbit</span>
@@ -601,6 +679,150 @@ export default function AdminStaffPage() {
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 transition-colors shadow-sm"
               >
                 Saya Mengerti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Kartu Voucher Dosen & Tendik (QR Code & Serial Number) */}
+      {voucherModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
+          onClick={() => setVoucherModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl max-w-sm w-full my-auto shadow-2xl border border-sky-200 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header with Title & Big Visible Close Button X */}
+            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3.5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-black text-xs">
+                  UP
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-xs leading-tight">Voucher Dosen & Tendik</h3>
+                  <p className="text-[10px] text-sky-100">Universitas Pignatelli Triputra</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVoucherModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Tutup (Esc)"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 overflow-y-auto space-y-3 bg-slate-50/50">
+              {loadingVoucherModal ? (
+                <div className="py-12 text-center text-slate-500">
+                  <Loader2 className="w-7 h-7 animate-spin mx-auto text-sky-600 mb-2" />
+                  <p className="text-xs font-semibold">Memuat kartu voucher & QR Code...</p>
+                </div>
+              ) : selectedStaffVoucher ? (
+                <div className="space-y-3">
+                  {/* Kartu Voucher Digital */}
+                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
+                    {/* Badge Nilai & Jam */}
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
+                      <div className="text-left">
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Subsidi Kampus</span>
+                        <span className="font-black text-sky-600 text-sm">Rp {selectedStaffVoucher.amount.toLocaleString('id-ID')}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] text-slate-400 font-bold block uppercase tracking-wider">Jam Berlaku</span>
+                        <span className="font-bold text-slate-700 text-xs">{selectedStaffVoucher.valid_hours}</span>
+                      </div>
+                    </div>
+
+                    {/* Gambar QR Code */}
+                    <div className="bg-white p-2 rounded-xl inline-block shadow-sm border border-sky-100 mb-1">
+                      {selectedStaffVoucher.qr_png_base64 ? (
+                        <img
+                          src={`data:image/png;base64,${selectedStaffVoucher.qr_png_base64}`}
+                          alt="QR Code Voucher"
+                          className="w-36 h-36 mx-auto rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-36 h-36 flex items-center justify-center bg-slate-100 text-slate-400 text-xs rounded-lg">
+                          QR Code
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[10px] font-bold text-sky-700 flex items-center justify-center gap-1 mb-2">
+                      <span>📷</span> Tunjukkan QR Code ke kamera kasir stan
+                    </p>
+
+                    {/* Serial Number / Nomor Kode Cadangan */}
+                    <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-2.5 text-center">
+                      <span className="text-[9px] text-emerald-800 font-bold block uppercase tracking-wider mb-0.5">
+                        NOMOR KODE VOUCHER (PILIHAN MANUAL):
+                      </span>
+                      <div className="flex items-center justify-center gap-2">
+                        <span className="font-mono text-lg font-black text-emerald-700 tracking-wider">
+                          {selectedStaffVoucher.short_code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(selectedStaffVoucher.short_code)
+                            setVoucherCopied(true)
+                            setTimeout(() => setVoucherCopied(false), 2000)
+                          }}
+                          className="p-1 hover:bg-emerald-100 rounded text-emerald-700 transition-colors cursor-pointer"
+                          title="Salin Nomor Kode"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      {voucherCopied && (
+                        <span className="text-[9px] text-emerald-600 font-bold block">
+                          ✓ Berhasil disalin!
+                        </span>
+                      )}
+                      <span className="text-[9px] text-emerald-700/80 block mt-0.5">
+                        Kasir dapat menginput kode di atas jika kamera bermasalah
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Informasi Pemilik Voucher */}
+                  <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-2.5 text-[11px] space-y-1 text-slate-600">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Nama Penerima:</span>
+                      <span className="font-bold text-slate-800">{selectedStaffVoucher.staff_name}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Email:</span>
+                      <span className="font-mono text-slate-700 text-[10px]">{selectedStaffVoucher.staff_email}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Unit / Fakultas:</span>
+                      <span className="font-medium text-slate-700">{selectedStaffVoucher.unit || 'Umum'}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-sky-200/50 pt-1 mt-1">
+                      <span className="text-slate-400">Status Voucher:</span>
+                      <span className="font-bold text-emerald-700">
+                        {selectedStaffVoucher.status === 'used' ? 'Sudah Terpakai di Stan' : 'Aktif / Belum Dipakai'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100 shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setVoucherModalOpen(false)}
+                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
+              >
+                Tutup
               </button>
             </div>
           </div>

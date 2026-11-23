@@ -3,6 +3,7 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use axum_extra::extract::CookieJar;
 use serde::Deserialize;
+use sqlx::Row;
 use std::sync::Arc;
 
 use crate::models::{MenuItemInput, StaffInput, TenantInput};
@@ -547,6 +548,66 @@ pub async fn handle_admin_voucher_preview(
         "qr_png_base64": qr_png_base64,
         "valid_hours": "10.00 – 16.00 WIB",
         "auto_schedule": "Setiap Hari Kerja Pukul 10:00 WIB"
+    })))
+}
+
+pub async fn handle_admin_staff_get_voucher(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today = chrono::Utc::now().with_timezone(&wib).date_naive();
+    let today_str = today.format("%Y-%m-%d").to_string();
+
+    let sql = r#"
+        SELECT s.id AS staff_id, s.name AS staff_name, s.email AS staff_email, s.unit,
+               v.id AS voucher_id, v.amount, v.status::text AS voucher_status,
+               v.short_code, v.qr_payload, (v.email_sent_at IS NOT NULL) AS email_sent
+        FROM staff s
+        LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
+        WHERE s.id = $1
+    "#;
+
+    let row = sqlx::query(sql)
+        .bind(id)
+        .bind(today)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?
+        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Staf tidak ditemukan" }))))?;
+
+    let voucher_id: Option<i64> = row.get("voucher_id");
+    let voucher_id = voucher_id.ok_or_else(|| {
+        (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Voucher hari ini belum diterbitkan untuk staf ini" })))
+    })?;
+
+    let staff_name: String = row.get("staff_name");
+    let staff_email: String = row.get("staff_email");
+    let unit: String = row.get("unit");
+    let amount: i32 = row.get("amount");
+    let status: String = row.get("voucher_status");
+    let email_sent: bool = row.get("email_sent");
+    let short_code: Option<String> = row.get("short_code");
+    let qr_payload: Option<String> = row.get("qr_payload");
+
+    let short_code_val = short_code.unwrap_or_else(|| "UP-KANTIN".to_string());
+    let qr_payload_val = qr_payload.unwrap_or_else(|| format!("UPITRA:VOUCHER:{}", voucher_id));
+    let qr_png_base64 = crate::mailer::generate_qr_png_base64(&qr_payload_val).unwrap_or_default();
+
+    Ok(Json(serde_json::json!({
+        "staff_id": id,
+        "staff_name": staff_name,
+        "staff_email": staff_email,
+        "unit": unit,
+        "voucher_id": voucher_id,
+        "date_str": today_str,
+        "amount": amount,
+        "status": status,
+        "email_sent": email_sent,
+        "short_code": short_code_val,
+        "qr_payload": qr_payload_val,
+        "qr_png_base64": qr_png_base64,
+        "valid_hours": "10.00 – 16.00 WIB",
     })))
 }
 

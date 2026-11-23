@@ -1,4 +1,4 @@
-import { Staff, Tenant, Transaction, AdminSummaryData, AuthSession, MenuItemScan, ScanResult, TodayData } from '../types'
+import { Staff, StaffVoucherData, Tenant, Transaction, AdminSummaryData, AuthSession, MenuItemScan, ScanResult, TodayData } from '../types'
 
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '') + '/api'
 
@@ -66,6 +66,8 @@ export const api = {
       request<{ ok: boolean; message: string }>(`/admin/staff/${id}/resend-voucher`, {
         method: 'POST',
       }),
+    getStaffVoucher: (id: number) =>
+      request<StaffVoucherData>(`/admin/staff/${id}/voucher`),
     issueVouchers: (date?: string, force?: boolean, resend?: boolean) =>
       request<{
         date: string

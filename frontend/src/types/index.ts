@@ -5,8 +5,27 @@ export interface Staff {
   email: string
   unit: string
   is_active: boolean
+  today_voucher_id?: number
+  today_voucher_code?: string
+  today_qr_payload?: string
   today_voucher_status?: string
   today_voucher_email_sent?: boolean
+}
+
+export interface StaffVoucherData {
+  staff_id: number
+  staff_name: string
+  staff_email: string
+  unit: string
+  voucher_id: number
+  date_str: string
+  amount: number
+  status: string
+  email_sent: boolean
+  short_code: string
+  qr_payload: string
+  qr_png_base64: string
+  valid_hours: string
 }
 
 export interface Tenant {

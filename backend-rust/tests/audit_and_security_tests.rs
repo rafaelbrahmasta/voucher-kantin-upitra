@@ -3,7 +3,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use voucher_kantin_backend::config::Config;
 use voucher_kantin_backend::crypto;
-use voucher_kantin_backend::db::scan_by_token_hash;
+use voucher_kantin_backend::db::{self, scan_by_token_hash};
 use voucher_kantin_backend::issuer::{resend_single_voucher, resend_single_voucher_at, run_issue_vouchers};
 use voucher_kantin_backend::routes::finance::{claim_payout, parse_strict_date, ClaimError};
 
@@ -30,6 +30,8 @@ async fn get_test_pool_and_cfg() -> (PgPool, Config) {
         .connect(&test_db_url)
         .await
         .expect("Gagal menghubungkan ke database TEST_DATABASE_URL");
+
+    let _ = db::run_auto_migrations(&pool).await;
 
     let mut cfg = Config::from_env().unwrap_or_else(|_| Config {
         env: "test".to_string(),

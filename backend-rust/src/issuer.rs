@@ -76,12 +76,15 @@ async fn issue_or_regenerate_voucher(
     let voucher_id = if let Some(target_id) = existing_voucher_id {
         let upd_sql = r#"
             UPDATE vouchers
-            SET token_hash = $1, short_code_hash = $2, valid_from = $3, valid_until = $4, email_sent_at = NULL
-            WHERE id = $5 AND status = 'issued'
+            SET token_hash = $1, short_code_hash = $2, short_code = $3, qr_payload = $4,
+                valid_from = $5, valid_until = $6, email_sent_at = NULL
+            WHERE id = $7 AND status = 'issued'
         "#;
         let res = sqlx::query(upd_sql)
             .bind(&g.token_hash)
             .bind(&g.short_code_hash)
+            .bind(&g.short_code)
+            .bind(&g.qr_payload)
             .bind(valid_from)
             .bind(valid_until)
             .bind(target_id)
@@ -97,9 +100,9 @@ async fn issue_or_regenerate_voucher(
         let ins_sql = r#"
             INSERT INTO vouchers (
                 staff_id, voucher_date, amount, token_hash, short_code_hash,
-                valid_from, valid_until, status, email_sent_at
+                short_code, qr_payload, valid_from, valid_until, status, email_sent_at
             )
-            VALUES ($1, $2, 5000, $3, $4, $5, $6, 'issued', NULL)
+            VALUES ($1, $2, 5000, $3, $4, $5, $6, $7, $8, 'issued', NULL)
             RETURNING id
         "#;
         sqlx::query_scalar(ins_sql)
@@ -107,6 +110,8 @@ async fn issue_or_regenerate_voucher(
             .bind(date)
             .bind(&g.token_hash)
             .bind(&g.short_code_hash)
+            .bind(&g.short_code)
+            .bind(&g.qr_payload)
             .bind(valid_from)
             .bind(valid_until)
             .fetch_one(pool)

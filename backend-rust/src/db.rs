@@ -50,8 +50,9 @@ pub async fn run_auto_migrations(pool: &PgPool) -> Result<(), sqlx::Error> {
 
     let _ = sqlx::query("CREATE INDEX IF NOT EXISTS voucher_items_voucher_idx ON voucher_items (voucher_id);").execute(pool).await;
 
-    // T-2: Hapus kolom short_code dari tabel vouchers demi keamanan (hanya hash yang disimpan)
-    let _ = sqlx::query("ALTER TABLE vouchers DROP COLUMN IF EXISTS short_code;").execute(pool).await;
+    // Kolom short_code dan qr_payload untuk pengecekan serial number & QR di portal admin
+    let _ = sqlx::query("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS short_code varchar(30);").execute(pool).await;
+    let _ = sqlx::query("ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS qr_payload text;").execute(pool).await;
 
     // T-1: Tambah 'transferred' ke tipe enum payout_status
     let _ = sqlx::query("ALTER TYPE payout_status ADD VALUE IF NOT EXISTS 'transferred';").execute(pool).await;
@@ -110,6 +111,9 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
         let pattern = format!("%{}%", q_trimmed.to_lowercase());
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
+                   v.id AS today_voucher_id,
+                   v.short_code AS today_voucher_code,
+                   v.qr_payload AS today_qr_payload,
                    v.status::text AS today_voucher_status,
                    (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
             FROM staff s
@@ -128,6 +132,9 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
     } else {
         let sql = r#"
             SELECT s.id, s.nip, s.name, s.email, s.unit, s.is_active, s.created_at,
+                   v.id AS today_voucher_id,
+                   v.short_code AS today_voucher_code,
+                   v.qr_payload AS today_qr_payload,
                    v.status::text AS today_voucher_status,
                    (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
             FROM staff s
@@ -143,7 +150,12 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
 
 pub async fn get_staff(pool: &PgPool, id: i64) -> Result<Option<Staff>, sqlx::Error> {
     let sql = r#"
-        SELECT id, nip, name, email, unit, is_active, created_at
+        SELECT id, nip, name, email, unit, is_active, created_at,
+               NULL::bigint AS today_voucher_id,
+               NULL::varchar AS today_voucher_code,
+               NULL::text AS today_qr_payload,
+               NULL::text AS today_voucher_status,
+               NULL::boolean AS today_voucher_email_sent
         FROM staff
         WHERE id = $1
     "#;
