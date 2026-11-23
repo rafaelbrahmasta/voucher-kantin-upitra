@@ -10,6 +10,8 @@ export interface Staff {
   today_qr_payload?: string
   today_voucher_status?: string
   today_voucher_email_sent?: boolean
+  today_voucher_used_at?: string
+  today_tenant_name?: string
 }
 
 export interface StaffVoucherData {
@@ -26,6 +28,8 @@ export interface StaffVoucherData {
   qr_payload: string
   qr_png_base64: string
   valid_hours: string
+  used_at?: string
+  tenant_name?: string
 }
 
 export interface Tenant {
@@ -110,7 +114,16 @@ export interface ScanResult {
   }
 }
 
+export interface RecentScanItem {
+  staff_name: string
+  unit: string
+  short_code?: string
+  amount: number
+  used_at: string
+}
+
 export interface TodayData {
   count: number
   total: number
+  recent?: RecentScanItem[]
 }

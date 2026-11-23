@@ -22,6 +22,10 @@ pub struct Staff {
     pub today_voucher_status: Option<String>,
     #[serde(default)]
     pub today_voucher_email_sent: Option<bool>,
+    #[serde(default)]
+    pub today_voucher_used_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub today_tenant_name: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -147,9 +151,20 @@ pub struct ScanResult {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecentScanItem {
+    pub staff_name: String,
+    pub unit: String,
+    pub short_code: Option<String>,
+    pub amount: i32,
+    pub used_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TodayData {
     pub count: i64,
     pub total: i64,
+    #[serde(default)]
+    pub recent: Vec<RecentScanItem>,
 }
 
 // ── Transaksi ─────────────────────────────────────────────────────

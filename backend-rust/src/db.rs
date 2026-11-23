@@ -115,9 +115,12 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
                    v.short_code AS today_voucher_code,
                    v.qr_payload AS today_qr_payload,
                    v.status::text AS today_voucher_status,
-                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
+                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent,
+                   v.used_at AS today_voucher_used_at,
+                   t.name AS today_tenant_name
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
+            LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
             WHERE LOWER(s.name) LIKE $1
                OR LOWER(COALESCE(s.nip, '')) LIKE $1
                OR LOWER(s.email) LIKE $1
@@ -136,9 +139,12 @@ pub async fn list_staff(pool: &PgPool, q: Option<&str>) -> Result<Vec<Staff>, sq
                    v.short_code AS today_voucher_code,
                    v.qr_payload AS today_qr_payload,
                    v.status::text AS today_voucher_status,
-                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent
+                   (v.email_sent_at IS NOT NULL) AS today_voucher_email_sent,
+                   v.used_at AS today_voucher_used_at,
+                   t.name AS today_tenant_name
             FROM staff s
             LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $1
+            LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
             ORDER BY s.is_active DESC, s.name ASC
         "#;
         sqlx::query_as::<_, Staff>(sql)
@@ -155,7 +161,9 @@ pub async fn get_staff(pool: &PgPool, id: i64) -> Result<Option<Staff>, sqlx::Er
                NULL::varchar AS today_voucher_code,
                NULL::text AS today_qr_payload,
                NULL::text AS today_voucher_status,
-               NULL::boolean AS today_voucher_email_sent
+               NULL::boolean AS today_voucher_email_sent,
+               NULL::timestamptz AS today_voucher_used_at,
+               NULL::text AS today_tenant_name
         FROM staff
         WHERE id = $1
     "#;
@@ -612,7 +620,7 @@ pub async fn scan_by_short_code(
         });
     }
 
-    diagnose_voucher(pool, "v.voucher_date = $2 AND v.short_code_hash = $1", code_hash).await
+    diagnose_voucher(pool, "v.short_code_hash = $1", code_hash).await
 }
 
 async fn diagnose_voucher(pool: &PgPool, where_clause: &str, hash: &[u8]) -> Result<ScanResult, sqlx::Error> {
@@ -827,9 +835,33 @@ pub async fn get_tenant_today_stats(pool: &PgPool, tenant_id: i64) -> Result<Tod
           AND status = 'used'
     "#;
     let row = sqlx::query(sql).bind(tenant_id).fetch_one(pool).await?;
+
+    let recent_sql = r#"
+        SELECT s.name AS staff_name, s.unit, v.short_code, v.amount, v.used_at
+        FROM vouchers v
+        JOIN staff s ON s.id = v.staff_id
+        WHERE v.used_by_tenant_id = $1
+          AND v.used_at >= CURRENT_DATE
+          AND v.status = 'used'
+        ORDER BY v.used_at DESC
+        LIMIT 10
+    "#;
+    let recent_rows = sqlx::query(recent_sql).bind(tenant_id).fetch_all(pool).await.unwrap_or_default();
+    let recent = recent_rows.into_iter().map(|r| {
+        let used_at: DateTime<Utc> = r.get("used_at");
+        crate::models::RecentScanItem {
+            staff_name: r.get("staff_name"),
+            unit: r.get("unit"),
+            short_code: r.get("short_code"),
+            amount: r.get("amount"),
+            used_at: used_at.to_rfc3339(),
+        }
+    }).collect();
+
     Ok(TodayData {
         count: row.get("count"),
         total: row.get("total"),
+        recent,
     })
 }
 

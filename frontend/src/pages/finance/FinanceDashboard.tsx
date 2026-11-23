@@ -12,14 +12,32 @@ import {
   ArrowUpRight,
   HandCoins,
   FileDown,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
 
+const getWibDateStr = () => {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
+}
+
+const isWibAfter16 = () => {
+  const hour = parseInt(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jakarta',
+      hour: '2-digit',
+      hour12: false,
+    }).format(new Date()),
+    10
+  )
+  return hour >= 16
+}
+
 export default function FinanceDashboard() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(() => getWibDateStr())
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -98,13 +116,55 @@ export default function FinanceDashboard() {
             onClick={handleExport}
             disabled={exporting}
             title="Unduh Rekap Excel (CSV)"
-            className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm shadow-emerald-600/20 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white text-xs font-bold rounded-xl shadow-sm shadow-emerald-600/20 transition-all cursor-pointer"
           >
             <FileDown className="w-4 h-4" />
             <span className="hidden sm:inline">{exporting ? 'Mengunduh...' : 'Export Excel'}</span>
           </button>
         </div>
       </div>
+
+      {/* Live Operational & Cut-Off Notice */}
+      {date === getWibDateStr() && (
+        <div
+          className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-xs ${
+            isWibAfter16()
+              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900'
+              : 'bg-amber-50/80 border-amber-200 text-amber-900'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {isWibAfter16() ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+            )}
+            <div>
+              <span className="font-bold">
+                {isWibAfter16()
+                  ? 'Cut-Off Operasional Selesai (16:00 WIB)'
+                  : 'Jam Operasional Voucher Masih Berlangsung (10:00 – 16:00 WIB)'}
+              </span>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                {isWibAfter16()
+                  ? 'Seluruh voucher hari ini telah dikunci. Stan kantin siap mencairkan klaim subsidinya.'
+                  : 'Klaim pencairan kas kasir hari ini baru dapat diproses setelah penutupan pukul 16:00 WIB.'}
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/finance/payouts"
+            className={`shrink-0 px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1 ${
+              isWibAfter16()
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs'
+                : 'bg-white hover:bg-amber-100 text-amber-800 border border-amber-300'
+            }`}
+          >
+            <span>Buka Pencairan Kas</span>
+            <ArrowUpRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

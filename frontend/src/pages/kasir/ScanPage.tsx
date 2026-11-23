@@ -430,6 +430,18 @@ export default function ScanPage() {
 
       {/* ── Main content ── */}
       <main className="flex-1 p-4 space-y-4 overflow-y-auto">
+        {/* Anti-manipulasi Security & Operating Hours Banner */}
+        <div className="bg-gradient-to-r from-emerald-50 via-sky-50 to-white border border-emerald-200 rounded-xl p-2.5 shadow-xs flex items-center justify-between text-[11px]">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span className="font-extrabold text-slate-800">10:00 – 16:00 WIB</span>
+            <span className="text-slate-400">|</span>
+            <span className="text-emerald-800 font-medium">Proteksi Kriptografis Aktif</span>
+          </div>
+          <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+            HMAC-SHA256
+          </span>
+        </div>
 
         {/* ======= VIEW: SCAN ======= */}
         {(view === 'scan' || view === 'result') && (
@@ -584,21 +596,63 @@ export default function ScanPage() {
                 <div className="text-3xl font-black text-sky-600">{todayData?.count ?? 0}</div>
                 <div className="text-xs text-slate-500 font-medium mt-1">Voucher Diklaim</div>
               </div>
-              <div className="bg-white border border-sky-100 rounded-2xl p-4 text-center shadow-xs">
-                <div className="text-2xl font-black text-sky-600">
+              <div className="bg-white border border-emerald-100 rounded-2xl p-4 text-center shadow-xs">
+                <div className="text-2xl font-black text-emerald-600">
                   Rp{(todayData?.total ?? 0).toLocaleString('id')}
                 </div>
                 <div className="text-xs text-slate-500 font-medium mt-1">Total Kas Hari Ini</div>
               </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-2xl p-4 text-center text-xs text-slate-500 font-medium shadow-xs">
-              Rincian transaksi per voucher dapat dilihat di portal Admin IT (Ringkasan &gt; Transaksi).
+            {/* Riwayat Scan Terakhir Stan Ini */}
+            <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <span className="text-xs font-bold text-slate-800">Riwayat Scan Terakhir Stan Ini</span>
+                <span className="text-[10px] text-slate-400">Hari ini</span>
+              </div>
+
+              {todayData?.recent && todayData.recent.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto divide-y divide-slate-100">
+                  {todayData.recent.map((tx, idx) => (
+                    <div key={idx} className="pt-2 first:pt-0 flex items-center justify-between text-xs">
+                      <div>
+                        <div className="font-bold text-slate-900">{tx.staff_name}</div>
+                        <div className="text-[10px] text-slate-500 flex items-center gap-1.5">
+                          <span>{tx.unit || 'UPITRA'}</span>
+                          {tx.short_code && (
+                            <span className="font-mono bg-slate-100 px-1 py-0.2 rounded text-slate-600">
+                              {tx.short_code}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold text-emerald-600">+Rp{tx.amount.toLocaleString('id')}</div>
+                        <div className="text-[9px] text-slate-400 font-mono">
+                          {new Date(tx.used_at).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'Asia/Jakarta',
+                          })} WIB
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-xs text-slate-400 italic">
+                  Belum ada voucher yang di-scan di stan ini hari ini.
+                </div>
+              )}
+            </div>
+
+            <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-3 text-center text-[11px] text-sky-800 font-medium">
+              ℹ️ Seluruh voucher yang berhasil di-scan akan otomatis masuk ke daftar pencairan kas kasir setelah cut-off pukul 16:00 WIB.
             </div>
 
             <button
               onClick={loadToday}
-              className="w-full flex items-center justify-center gap-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl py-2.5 text-xs font-bold text-sky-800 transition-all shadow-xs"
+              className="w-full flex items-center justify-center gap-2 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl py-2.5 text-xs font-bold text-sky-800 transition-all shadow-xs cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               Refresh Data

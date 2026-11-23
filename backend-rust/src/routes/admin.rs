@@ -2,6 +2,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::Json;
 use axum_extra::extract::CookieJar;
+use chrono::{Datelike, Timelike};
 use serde::Deserialize;
 use sqlx::Row;
 use std::sync::Arc;
@@ -36,6 +37,32 @@ pub async fn handle_admin_staff_list(
     State(state): State<Arc<AppState>>,
     Query(query): Query<StaffQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let now_wib = chrono::Utc::now().with_timezone(&wib);
+    let is_weekday = matches!(
+        now_wib.weekday(),
+        chrono::Weekday::Mon | chrono::Weekday::Tue | chrono::Weekday::Wed | chrono::Weekday::Thu | chrono::Weekday::Fri
+    );
+
+    // Otomatis terbitkan voucher jika hari kerja & rentang jam operasional (10:00 - 16:00 WIB)
+    // dan ada staf aktif yang belum memiliki voucher hari ini
+    if is_weekday && now_wib.hour() >= 10 && now_wib.hour() < 16 {
+        let today = now_wib.date_naive();
+        let unissued: Result<(i64,), _> = sqlx::query_as(
+            "SELECT count(*) FROM staff s WHERE s.is_active = true AND NOT EXISTS (SELECT 1 FROM vouchers v WHERE v.staff_id = s.id AND v.voucher_date = $1)"
+        )
+        .bind(today)
+        .fetch_one(&state.pool)
+        .await;
+
+        if let Ok((count,)) = unissued {
+            if count > 0 {
+                tracing::info!("Auto-issuing vouchers for {} active staff on admin load", count);
+                let _ = crate::issuer::run_issue_vouchers(&state.pool, &state.config, Some(today), false, false).await;
+            }
+        }
+    }
+
     let staff = crate::db::list_staff(&state.pool, query.q.as_deref())
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
@@ -560,11 +587,13 @@ pub async fn handle_admin_staff_get_voucher(
     let today_str = today.format("%Y-%m-%d").to_string();
 
     let sql = r#"
-        SELECT s.id AS staff_id, s.name AS staff_name, s.email AS staff_email, s.unit,
+        SELECT s.id AS staff_id, s.name AS staff_name, s.email AS staff_email, s.unit, s.is_active,
                v.id AS voucher_id, v.amount, v.status::text AS voucher_status,
-               v.short_code, v.qr_payload, (v.email_sent_at IS NOT NULL) AS email_sent
+               v.short_code, v.qr_payload, (v.email_sent_at IS NOT NULL) AS email_sent,
+               v.used_at, t.name AS tenant_name
         FROM staff s
         LEFT JOIN vouchers v ON v.staff_id = s.id AND v.voucher_date = $2
+        LEFT JOIN tenants t ON t.id = v.used_by_tenant_id
         WHERE s.id = $1
     "#;
 
@@ -576,19 +605,42 @@ pub async fn handle_admin_staff_get_voucher(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?
         .ok_or_else(|| (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Staf tidak ditemukan" }))))?;
 
-    let voucher_id: Option<i64> = row.get("voucher_id");
+    let is_active: bool = row.get("is_active");
+    let voucher_id_opt: Option<i64> = row.get("voucher_id");
+
+    let final_row = match voucher_id_opt {
+        Some(_) => row,
+        None if is_active => {
+            // Jika staf aktif dan belum ada voucher hari ini, buat otomatis
+            let _ = crate::issuer::run_issue_vouchers(&state.pool, &state.config, Some(today), false, false).await;
+            sqlx::query(sql)
+                .bind(id)
+                .bind(today)
+                .fetch_optional(&state.pool)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?
+                .ok_or_else(|| (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Staf tidak ditemukan" }))))?
+        }
+        None => {
+            return Err((StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Voucher hari ini belum diterbitkan (staf nonaktif)" }))));
+        }
+    };
+
+    let voucher_id: Option<i64> = final_row.get("voucher_id");
     let voucher_id = voucher_id.ok_or_else(|| {
         (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": "Voucher hari ini belum diterbitkan untuk staf ini" })))
     })?;
 
-    let staff_name: String = row.get("staff_name");
-    let staff_email: String = row.get("staff_email");
-    let unit: String = row.get("unit");
-    let amount: i32 = row.get("amount");
-    let status: String = row.get("voucher_status");
-    let email_sent: bool = row.get("email_sent");
-    let short_code: Option<String> = row.get("short_code");
-    let qr_payload: Option<String> = row.get("qr_payload");
+    let staff_name: String = final_row.get("staff_name");
+    let staff_email: String = final_row.get("staff_email");
+    let unit: String = final_row.get("unit");
+    let amount: i32 = final_row.get("amount");
+    let status: String = final_row.get("voucher_status");
+    let email_sent: bool = final_row.get("email_sent");
+    let short_code: Option<String> = final_row.get("short_code");
+    let qr_payload: Option<String> = final_row.get("qr_payload");
+    let used_at: Option<chrono::DateTime<chrono::Utc>> = final_row.get("used_at");
+    let tenant_name: Option<String> = final_row.get("tenant_name");
 
     let short_code_val = short_code.unwrap_or_else(|| "UP-KANTIN".to_string());
     let qr_payload_val = qr_payload.unwrap_or_else(|| format!("UPITRA:VOUCHER:{}", voucher_id));
@@ -608,6 +660,8 @@ pub async fn handle_admin_staff_get_voucher(
         "qr_payload": qr_payload_val,
         "qr_png_base64": qr_png_base64,
         "valid_hours": "10.00 – 16.00 WIB",
+        "used_at": used_at.map(|t| t.to_rfc3339()),
+        "tenant_name": tenant_name,
     })))
 }
 

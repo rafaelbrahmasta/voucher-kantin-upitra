@@ -18,6 +18,8 @@ import {
   Copy,
   QrCode,
   Loader2,
+  Printer,
+  FileDown,
 } from 'lucide-react'
 import { api } from '../../services/api'
 import { Staff, StaffVoucherData } from '../../types'
@@ -27,6 +29,7 @@ export default function AdminStaffPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [voucherFilter, setVoucherFilter] = useState<'all' | 'issued' | 'used' | 'unissued'>('all')
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -198,14 +201,73 @@ export default function AdminStaffPage() {
     setTimeout(() => setSuccessToast(''), 3500)
   }
 
+  const handleExportTodayVouchers = () => {
+    const headers = [
+      'No',
+      'Nama Dosen/Staf',
+      'NIP',
+      'Email Kampus',
+      'Unit/Fakultas',
+      'Status Keaktifan',
+      'Status Voucher Hari Ini',
+      'Nomor Kode Voucher',
+      'Status Email',
+      'Waktu Ditukar',
+      'Stan Kantin',
+    ]
+    const rows = staffList.map((s, idx) => [
+      idx + 1,
+      `"${s.name.replace(/"/g, '""')}"`,
+      `"${s.nip || '-'}"`,
+      `"${s.email}"`,
+      `"${s.unit || '-'}"`,
+      s.is_active ? 'Aktif' : 'Nonaktif',
+      s.today_voucher_status === 'used'
+        ? 'Sudah Ditukar'
+        : s.today_voucher_status === 'issued'
+        ? 'Siap Pakai'
+        : 'Belum Terbit',
+      `"${s.today_voucher_code || '-'}"`,
+      s.today_voucher_email_sent ? 'Terkirim' : 'Belum Terkirim',
+      s.today_voucher_used_at
+        ? new Date(s.today_voucher_used_at).toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Jakarta',
+          }) + ' WIB'
+        : '-',
+      `"${s.today_tenant_name || '-'}"`,
+    ])
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute(
+      'download',
+      `rekap-voucher-upitra-${new Date().toISOString().split('T')[0]}.csv`
+    )
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    showToast('Rekapan voucher hari ini berhasil diexport ke CSV!')
+  }
+
   const filteredStaff = staffList.filter((s) => {
-    if (statusFilter === 'active') return s.is_active
-    if (statusFilter === 'inactive') return !s.is_active
+    if (statusFilter === 'active' && !s.is_active) return false
+    if (statusFilter === 'inactive' && s.is_active) return false
+    if (voucherFilter === 'issued' && s.today_voucher_status !== 'issued') return false
+    if (voucherFilter === 'used' && s.today_voucher_status !== 'used') return false
+    if (voucherFilter === 'unissued' && (s.today_voucher_id || !s.is_active)) return false
     return true
   })
 
   const totalCount = staffList.length
   const activeCount = staffList.filter((s) => s.is_active).length
+  const issuedCount = staffList.filter((s) => s.today_voucher_status === 'issued').length
+  const usedCount = staffList.filter((s) => s.today_voucher_status === 'used').length
+  const unissuedCount = staffList.filter((s) => s.is_active && !s.today_voucher_id).length
 
   return (
     <div className="space-y-6">
@@ -229,13 +291,18 @@ export default function AdminStaffPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-[11px] font-bold text-sky-800">
-            ⏰ Terbit Otomatis: 10:00 WIB
-          </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={handleExportTodayVouchers}
+            title="Download file CSV rekap data staf penerima voucher hari ini beserta nomor kode & statusnya"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold transition-all shadow-xs cursor-pointer"
+          >
+            <FileDown className="w-4 h-4 text-emerald-700" />
+            <span>Export CSV Hari Ini</span>
+          </button>
           <button
             onClick={() => handleOpenModal()}
-            className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm shadow-sky-500/25 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-sm shadow-sky-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             Tambah Dosen / Staf
@@ -244,69 +311,124 @@ export default function AdminStaffPage() {
       </div>
 
       {/* Metric Highlights */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white border border-sky-100 rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Total Dosen & Staf</span>
-          <div className="text-2xl font-black text-slate-900 mt-1">{totalCount} orang</div>
+          <span className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider block">Total Dosen & Staf</span>
+          <div className="text-xl font-black text-slate-900 mt-1">{totalCount} <span className="text-xs font-normal text-slate-400">orang</span></div>
+          <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">{activeCount} staf aktif</span>
+        </div>
+        <div className="bg-white border border-sky-200 rounded-2xl p-4 shadow-xs">
+          <span className="text-[11px] text-sky-700 font-semibold uppercase tracking-wider block">Siap Digunakan</span>
+          <div className="text-xl font-black text-sky-600 mt-1">{issuedCount} <span className="text-xs font-normal text-slate-400">voucher</span></div>
+          <span className="text-[10px] text-sky-600 font-bold block mt-0.5">Sudah terbit & siap scan</span>
         </div>
         <div className="bg-white border border-emerald-100 rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-emerald-700 font-semibold uppercase tracking-wider">Penerima Aktif</span>
-          <div className="text-2xl font-black text-emerald-600 mt-1">{activeCount} orang</div>
+          <span className="text-[11px] text-emerald-700 font-semibold uppercase tracking-wider block">Sudah Ditukar</span>
+          <div className="text-xl font-black text-emerald-600 mt-1">{usedCount} <span className="text-xs font-normal text-slate-400">voucher</span></div>
+          <span className="text-[10px] text-emerald-700 font-bold block mt-0.5">Terklaim di stan kantin</span>
         </div>
-        <div className="bg-white border border-rose-100 rounded-2xl p-4 shadow-xs">
-          <span className="text-xs text-rose-700 font-semibold uppercase tracking-wider">Status Non-Aktif</span>
-          <div className="text-2xl font-black text-rose-600 mt-1">{totalCount - activeCount} orang</div>
+        <div className="bg-white border border-amber-100 rounded-2xl p-4 shadow-xs">
+          <span className="text-[11px] text-amber-700 font-semibold uppercase tracking-wider block">Belum Terbit</span>
+          <div className="text-xl font-black text-amber-600 mt-1">{unissuedCount} <span className="text-xs font-normal text-slate-400">staf</span></div>
+          <span className="text-[10px] text-amber-700 font-bold block mt-0.5">Auto-terbit saat jam 10:00</span>
         </div>
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
-        <form onSubmit={handleSearch} className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari nama, NIP, email, atau unit..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
-          />
-        </form>
+      <div className="space-y-2 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          <form onSubmit={handleSearch} className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari nama, NIP, email, atau unit..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:bg-white transition-colors"
+            />
+          </form>
 
-        <div className="flex items-center gap-2">
-          {/* Status Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+          <div className="flex items-center gap-2">
+            {/* Status Tabs */}
+            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                  statusFilter === 'all' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Semua ({totalCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('active')}
+                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                  statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Aktif ({activeCount})
+              </button>
+              <button
+                onClick={() => setStatusFilter('inactive')}
+                className={`px-3 py-1 rounded-lg font-bold transition-colors cursor-pointer ${
+                  statusFilter === 'inactive' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Nonaktif ({totalCount - activeCount})
+              </button>
+            </div>
+
             <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                statusFilter === 'all' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
+              onClick={() => loadStaff(search)}
+              title="Refresh data"
+              className="p-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors cursor-pointer"
             >
-              Semua ({totalCount})
-            </button>
-            <button
-              onClick={() => setStatusFilter('active')}
-              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Aktif ({activeCount})
-            </button>
-            <button
-              onClick={() => setStatusFilter('inactive')}
-              className={`px-3 py-1 rounded-lg font-bold transition-colors ${
-                statusFilter === 'inactive' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Nonaktif ({totalCount - activeCount})
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
+        </div>
 
+        {/* Quick Filter Status Voucher Hari Ini */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-[11px]">
+          <span className="text-slate-400 font-bold mr-1">Filter Voucher Hari Ini:</span>
           <button
-            onClick={() => loadStaff(search)}
-            title="Refresh data"
-            className="p-2 bg-white hover:bg-slate-50 text-slate-600 rounded-xl border border-slate-200 shadow-xs transition-colors"
+            onClick={() => setVoucherFilter('all')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              voucherFilter === 'all'
+                ? 'bg-slate-800 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Semua Voucher
+          </button>
+          <button
+            onClick={() => setVoucherFilter('issued')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              voucherFilter === 'issued'
+                ? 'bg-sky-600 text-white shadow-xs'
+                : 'bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200'
+            }`}
+          >
+            Siap Pakai ({issuedCount})
+          </button>
+          <button
+            onClick={() => setVoucherFilter('used')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              voucherFilter === 'used'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+            }`}
+          >
+            Sudah Ditukar ({usedCount})
+          </button>
+          <button
+            onClick={() => setVoucherFilter('unissued')}
+            className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
+              voucherFilter === 'unissued'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+            }`}
+          >
+            Belum Terbit ({unissuedCount})
           </button>
         </div>
       </div>
@@ -399,6 +521,20 @@ export default function AdminStaffPage() {
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                             Terpakai di Stan
                           </span>
+                          {staff.today_tenant_name && (
+                            <span className="text-[10px] text-slate-600 font-medium truncate max-w-[140px]" title={staff.today_tenant_name}>
+                              {staff.today_tenant_name}
+                            </span>
+                          )}
+                          {staff.today_voucher_used_at && (
+                            <span className="text-[9px] text-slate-400 font-mono">
+                              {new Date(staff.today_voucher_used_at).toLocaleTimeString('id-ID', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                timeZone: 'Asia/Jakarta',
+                              })} WIB
+                            </span>
+                          )}
                           <div className="flex items-center justify-center gap-1.5 mt-0.5">
                             <span className="font-mono text-xs font-black text-slate-600 bg-slate-100 border border-slate-300 px-2 py-0.5 rounded-lg tracking-wider">
                               {staff.today_voucher_code || 'VOUCHER'}
@@ -410,7 +546,7 @@ export default function AdminStaffPage() {
                               className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-0.5 rounded-lg text-[10px] font-bold border border-slate-300 transition-colors cursor-pointer"
                             >
                               <QrCode className="w-3 h-3" />
-                              QR
+                              Lihat QR
                             </button>
                           </div>
                         </div>
@@ -691,12 +827,41 @@ export default function AdminStaffPage() {
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setVoucherModalOpen(false)}
         >
+          {/* Print Styles */}
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              #printable-voucher-card, #printable-voucher-card * { visibility: visible !important; }
+              #printable-voucher-card {
+                position: fixed !important;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: 340px !important;
+                border: 2px dashed #0284c7 !important;
+                padding: 16px !important;
+                background: white !important;
+                box-shadow: none !important;
+              }
+            }
+          `}</style>
+
           <div
             className="relative bg-white rounded-3xl max-w-sm w-full my-auto shadow-2xl border border-sky-200 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Visible Floating Close Button X - Menjamin selalu ada tombol X yang jelas */}
+            <button
+              type="button"
+              onClick={() => setVoucherModalOpen(false)}
+              className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center shadow-lg transition-all z-50 cursor-pointer"
+              title="Tutup (Esc)"
+            >
+              <X className="w-5 h-5 stroke-[2.5]" />
+            </button>
+
             {/* Modal Header with Title & Big Visible Close Button X */}
-            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3.5 text-white flex items-center justify-between shrink-0">
+            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3.5 pr-12 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-black text-xs">
                   UP
@@ -706,14 +871,6 @@ export default function AdminStaffPage() {
                   <p className="text-[10px] text-sky-100">Universitas Pignatelli Triputra</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setVoucherModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Tutup (Esc)"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Modal Body */}
@@ -725,8 +882,8 @@ export default function AdminStaffPage() {
                 </div>
               ) : selectedStaffVoucher ? (
                 <div className="space-y-3">
-                  {/* Kartu Voucher Digital */}
-                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
+                  {/* Kartu Voucher Digital (Bisa dicetak langsung) */}
+                  <div id="printable-voucher-card" className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
                     {/* Badge Nilai & Jam */}
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
                       <div className="text-left">
@@ -788,9 +945,15 @@ export default function AdminStaffPage() {
                         Kasir dapat menginput kode di atas jika kamera bermasalah
                       </span>
                     </div>
+
+                    {/* Dosen Info di dalam cetakan */}
+                    <div className="mt-2 text-[10px] text-slate-600 border-t border-slate-100 pt-1.5 flex justify-between">
+                      <span className="font-bold text-slate-800">{selectedStaffVoucher.staff_name}</span>
+                      <span className="text-slate-500">{selectedStaffVoucher.unit || 'UPITRA'}</span>
+                    </div>
                   </div>
 
-                  {/* Informasi Pemilik Voucher */}
+                  {/* Informasi Pemilik Voucher & Status Realtime */}
                   <div className="bg-sky-50/70 border border-sky-100 rounded-xl p-2.5 text-[11px] space-y-1 text-slate-600">
                     <div className="flex justify-between">
                       <span className="text-slate-400">Nama Penerima:</span>
@@ -807,20 +970,49 @@ export default function AdminStaffPage() {
                     <div className="flex justify-between border-t border-sky-200/50 pt-1 mt-1">
                       <span className="text-slate-400">Status Voucher:</span>
                       <span className="font-bold text-emerald-700">
-                        {selectedStaffVoucher.status === 'used' ? 'Sudah Terpakai di Stan' : 'Aktif / Belum Dipakai'}
+                        {selectedStaffVoucher.status === 'used'
+                          ? `Sudah Terpakai ${selectedStaffVoucher.tenant_name ? `di ${selectedStaffVoucher.tenant_name}` : 'di Stan'}`
+                          : 'Aktif / Siap Pakai'}
                       </span>
                     </div>
+                    {selectedStaffVoucher.status === 'used' && selectedStaffVoucher.used_at && (
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-slate-400">Waktu Scan:</span>
+                        <span className="font-mono text-slate-600">
+                          {new Date(selectedStaffVoucher.used_at).toLocaleTimeString('id-ID', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            timeZone: 'Asia/Jakarta',
+                          })} WIB
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Anti-Manipulasi Badge */}
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2 text-[10px] text-emerald-800 text-center flex items-center justify-center gap-1.5">
+                    <span className="font-bold">🔒 Keamanan Kriptografis:</span>
+                    <span>Kode & QR berbeda setiap hari & diverifikasi real-time server.</span>
                   </div>
                 </div>
               ) : null}
             </div>
 
-            {/* Modal Footer */}
+            {/* Modal Footer with Print and Close Buttons */}
             <div className="p-3 bg-slate-50 border-t border-slate-100 shrink-0 flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Cetak kartu voucher fisik untuk staf"
+              >
+                <Printer className="w-4 h-4 text-sky-600" />
+                <span>Cetak / Print Kartu</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setVoucherModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
               >
                 Tutup
               </button>

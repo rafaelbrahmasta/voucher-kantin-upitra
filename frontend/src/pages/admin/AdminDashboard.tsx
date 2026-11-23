@@ -17,6 +17,7 @@ import {
   Eye,
   X,
   Copy,
+  Printer,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { api } from '../../services/api'
@@ -150,7 +151,8 @@ export default function AdminDashboard() {
           <button
             onClick={handleIssueVouchers}
             disabled={issuing}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all disabled:opacity-50"
+            title="Terbitkan manual kuota voucher sekarang (Opsional jika ingin terbit sebelum jam 10:00)"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
           >
             {issuing ? (
               <>
@@ -160,7 +162,7 @@ export default function AdminDashboard() {
             ) : (
               <>
                 <Send className="w-3.5 h-3.5" />
-                <span>Terbitkan Voucher</span>
+                <span>Terbitkan Manual (Cadangan)</span>
               </>
             )}
           </button>
@@ -168,20 +170,20 @@ export default function AdminDashboard() {
       </div>
 
       {/* Auto-Scheduler Info Banner */}
-      <div className="bg-gradient-to-r from-sky-50 via-sky-50/50 to-white border border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-gradient-to-r from-emerald-50 via-sky-50 to-white border border-sky-200 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-600/20">
+          <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-emerald-600/20">
             <Clock className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-900">Jadwal Penerbitan Voucher Otomatis</span>
+              <span className="text-xs font-bold text-slate-900">Jadwal Auto-Terbit Harian</span>
               <span className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-300">
-                AKTIF (10:00 WIB)
+                OTOMATIS (10:00 WIB)
               </span>
             </div>
             <p className="text-[11px] text-slate-600 mt-0.5">
-              Sistem backend otomatis menerbitkan voucher setiap hari kerja (Senin–Jumat) tepat pukul 10:00 WIB ke email dosen & staf aktif. Voucher menyertakan <strong>Gambar QR Code</strong> resmi beserta <strong>Nomor Kode Cadangan</strong>.
+              Sistem backend otomatis menerbitkan voucher setiap hari kerja (Senin–Jumat) tepat pukul 10:00 WIB ke email dosen & staf aktif. Token QR & Nomor Kode <strong>berganti dan berbeda secara kriptografis setiap hari</strong> untuk mencegah manipulasi.
             </p>
           </div>
         </div>
@@ -424,12 +426,41 @@ export default function AdminDashboard() {
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto"
           onClick={() => setPreviewModalOpen(false)}
         >
+          {/* Print Styles */}
+          <style>{`
+            @media print {
+              body * { visibility: hidden !important; }
+              #printable-preview-card, #printable-preview-card * { visibility: visible !important; }
+              #printable-preview-card {
+                position: fixed !important;
+                left: 50% !important;
+                top: 50% !important;
+                transform: translate(-50%, -50%) !important;
+                width: 340px !important;
+                border: 2px dashed #0284c7 !important;
+                padding: 16px !important;
+                background: white !important;
+                box-shadow: none !important;
+              }
+            }
+          `}</style>
+
           <div
             className="relative bg-white rounded-3xl max-w-sm w-full my-auto shadow-2xl border border-sky-200 flex flex-col max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Prominent Floating Close Button X - Mudah dilihat dan diklik */}
+            <button
+              type="button"
+              onClick={() => setPreviewModalOpen(false)}
+              className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center shadow-lg transition-all z-50 cursor-pointer"
+              title="Tutup (Esc)"
+            >
+              <X className="w-5 h-5 stroke-[2.5]" />
+            </button>
+
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3 text-white flex items-center justify-between shrink-0">
+            <div className="bg-gradient-to-r from-sky-600 to-blue-700 px-5 py-3 pr-12 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center font-black text-xs">
                   UP
@@ -439,14 +470,6 @@ export default function AdminDashboard() {
                   <p className="text-[10px] text-sky-100">Desain resmi yang dikirim ke email</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setPreviewModalOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Tutup (Esc)"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
 
             {/* Modal Body */}
@@ -459,7 +482,7 @@ export default function AdminDashboard() {
               ) : previewData ? (
                 <div className="space-y-3">
                   {/* Kartu Voucher Digital */}
-                  <div className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
+                  <div id="printable-preview-card" className="bg-white border-2 border-dashed border-sky-400 rounded-2xl p-3.5 text-center shadow-xs">
                     {/* Badge Nilai & Jam */}
                     <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2 text-xs">
                       <div className="text-left">
@@ -517,6 +540,11 @@ export default function AdminDashboard() {
                         Kasir dapat menginput kode di atas jika kamera bermasalah
                       </span>
                     </div>
+
+                    <div className="mt-2 text-[10px] text-slate-600 border-t border-slate-100 pt-1.5 flex justify-between">
+                      <span className="font-bold text-slate-800">{previewData.staff_name}</span>
+                      <span className="text-slate-500">{previewData.unit}</span>
+                    </div>
                   </div>
 
                   {/* Informasi Dosen & Jadwal */}
@@ -534,16 +562,31 @@ export default function AdminDashboard() {
                       <span className="font-bold text-sky-700">{previewData.auto_schedule}</span>
                     </div>
                   </div>
+
+                  {/* Anti-Manipulasi Badge */}
+                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-2 text-[10px] text-emerald-800 text-center flex items-center justify-center gap-1.5">
+                    <span className="font-bold">🔒 Keamanan Kriptografis:</span>
+                    <span>Kode & QR berbeda setiap hari & diverifikasi real-time server.</span>
+                  </div>
                 </div>
               ) : null}
             </div>
 
-            {/* Modal Footer */}
-            <div className="p-3 bg-slate-50 border-t border-slate-100 shrink-0">
+            {/* Modal Footer with Print and Close */}
+            <div className="p-3 bg-slate-50 border-t border-slate-100 shrink-0 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                title="Cetak contoh voucher ini"
+              >
+                <Printer className="w-4 h-4 text-sky-600" />
+                <span>Cetak / Print</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setPreviewModalOpen(false)}
-                className="w-full py-2 px-4 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
+                className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white bg-slate-800 hover:bg-slate-900 transition-colors shadow-sm cursor-pointer"
               >
                 Tutup Preview
               </button>

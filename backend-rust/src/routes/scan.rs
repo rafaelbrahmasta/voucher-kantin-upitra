@@ -425,10 +425,10 @@ pub async fn handle_today(
     let now_unix = Utc::now().timestamp();
     let tenant_id = extract_tenant_id(&state, &jar, now_unix).await;
     if tenant_id <= 0 {
-        return Json(TodayData { count: 0, total: 0 });
+        return Json(TodayData { count: 0, total: 0, recent: vec![] });
     }
 
-    let stats = crate::db::get_tenant_today_stats(&state.pool, tenant_id).await.unwrap_or(TodayData { count: 0, total: 0 });
+    let stats = crate::db::get_tenant_today_stats(&state.pool, tenant_id).await.unwrap_or(TodayData { count: 0, total: 0, recent: vec![] });
     Json(stats)
 }
 

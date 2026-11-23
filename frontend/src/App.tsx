@@ -45,8 +45,8 @@ function HomePage() {
       <main className="max-w-5xl mx-auto px-6 py-14 flex-1 flex flex-col justify-center">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <div className="inline-flex items-center gap-2 bg-sky-100/80 border border-sky-200 px-3.5 py-1.5 rounded-full text-xs font-bold text-sky-800 mb-4 shadow-xs">
-            <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
-            Sistem Digitalisasi Voucher Kampus
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            Subsidi Voucher Rp5.000 | Jam Berlaku: 10:00 – 16:00 WIB
           </div>
           <h2 className="text-3xl sm:text-4xl font-black tracking-tight mb-4 text-slate-900">
             Sistem Digital Voucher Kantin Kampus
