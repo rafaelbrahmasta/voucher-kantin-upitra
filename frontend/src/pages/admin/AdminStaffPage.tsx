@@ -115,7 +115,13 @@ export default function AdminStaffPage() {
 
   const [resendingId, setResendingId] = useState<number | null>(null)
 
-  const handleResend = async (id: number, name: string) => {
+  const handleResend = async (id: number, name: string, emailSent?: boolean) => {
+    if (emailSent) {
+      if (!window.confirm('QR lama akan tidak berlaku. Lanjutkan?')) {
+        return
+      }
+    }
+
     try {
       setResendingId(id)
       const res = await api.admin.resendVoucher(id)
@@ -370,7 +376,7 @@ export default function AdminStaffPage() {
                           )}
                           <button
                             type="button"
-                            onClick={() => handleResend(staff.id, staff.name)}
+                            onClick={() => handleResend(staff.id, staff.name, staff.today_voucher_email_sent)}
                             disabled={resendingId === staff.id}
                             title="Buat ulang token & kirim ulang email voucher"
                             className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 hover:text-sky-600 border border-slate-200 transition-colors cursor-pointer disabled:opacity-50"

@@ -14,10 +14,29 @@ import {
 } from 'lucide-react'
 import { api } from '../../services/api'
 
+// Helper tanggal & jam zona waktu WIB (Asia/Jakarta, UTC+7) (B4)
+const getWibDateStr = () => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jakarta',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+const getWibHour = () => {
+  const hourStr = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jakarta',
+    hour: 'numeric',
+    hour12: false,
+  }).format(new Date())
+  return parseInt(hourStr, 10)
+}
+
 export default function FinancePayoutsPage() {
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
+  const [date, setDate] = useState(() => getWibDateStr())
   const [transferredSet, setTransferredSet] = useState<Set<number>>(new Set())
   const [successToast, setSuccessToast] = useState('')
 
@@ -65,9 +84,8 @@ export default function FinancePayoutsPage() {
     window.print()
   }
 
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const isTodayBeforeClosing = date === todayStr && now.getHours() < 16
+  const todayStr = getWibDateStr()
+  const isTodayBeforeClosing = date === todayStr && getWibHour() < 16
 
   return (
     <div className="space-y-6">

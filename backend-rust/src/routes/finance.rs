@@ -136,7 +136,9 @@ pub async fn handle_finance_payouts(
     State(state): State<Arc<AppState>>,
     Query(query): Query<DateQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    let date_str = query.tanggal.unwrap_or_else(|| chrono::Utc::now().format("%Y-%m-%d").to_string());
+    let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
+    let today_wib = chrono::Utc::now().with_timezone(&wib).format("%Y-%m-%d").to_string();
+    let date_str = query.tanggal.clone().filter(|s| !s.is_empty()).unwrap_or_else(|| today_wib.clone());
 
     let sql = r#"
         SELECT t.id, t.name, COALESCE(t.stall_location, '') AS stall,
@@ -205,15 +207,246 @@ pub struct PayoutClaimRequest {
     pub date: String,
 }
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ClaimResult {
+    pub receipt_no: String,
+    pub payout_id: i64,
+    pub settlement_id: i64,
+    pub count: i64,
+    pub amount: i64,
+}
+
+#[derive(Debug)]
+pub enum ClaimError {
+    InvalidDate(String),
+    FutureDate,
+    BeforeCutoff,
+    TenantNotFound,
+    AlreadyPaid,
+    NoVouchers,
+    Conflict(String),
+    DbError(String),
+}
+
+impl std::fmt::Display for ClaimError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClaimError::InvalidDate(msg) => write!(f, "{}", msg),
+            ClaimError::FutureDate => write!(f, "Tidak dapat mencairkan dana untuk tanggal di masa depan."),
+            ClaimError::BeforeCutoff => write!(f, "Pencairan dana hari ini baru dapat dilakukan setelah jam operasional voucher ditutup (pukul 16:00 WIB). Hal ini untuk memastikan seluruh staf telah selesai bertransaksi dan tidak ada voucher yang tertinggal."),
+            ClaimError::TenantNotFound => write!(f, "Stan kantin tidak ditemukan."),
+            ClaimError::AlreadyPaid => write!(f, "Pencairan kas untuk stan dan tanggal ini sudah selesai dilakukan (mencegah pencairan ganda)."),
+            ClaimError::NoVouchers => write!(f, "Tidak ada transaksi voucher baru yang belum dicairkan pada tanggal ini"),
+            ClaimError::Conflict(msg) => write!(f, "{}", msg),
+            ClaimError::DbError(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+impl std::error::Error for ClaimError {}
+
+impl ClaimError {
+    pub fn to_status_and_json(&self) -> (StatusCode, Json<serde_json::Value>) {
+        match self {
+            ClaimError::InvalidDate(_) | ClaimError::FutureDate | ClaimError::BeforeCutoff | ClaimError::AlreadyPaid | ClaimError::NoVouchers => {
+                (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": self.to_string() })))
+            }
+            ClaimError::TenantNotFound => {
+                (StatusCode::NOT_FOUND, Json(serde_json::json!({ "error": self.to_string() })))
+            }
+            ClaimError::Conflict(_) => {
+                (StatusCode::CONFLICT, Json(serde_json::json!({ "error": self.to_string() })))
+            }
+            ClaimError::DbError(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": self.to_string() })))
+            }
+        }
+    }
+}
+
+/// B1 & C4.7: Validasi format tanggal persis YYYY-MM-DD
+pub fn parse_strict_date(date_str: &str) -> Result<chrono::NaiveDate, ClaimError> {
+    let parts: Vec<&str> = date_str.split('-').collect();
+    if parts.len() != 3 || parts[0].len() != 4 || parts[1].len() != 2 || parts[2].len() != 2 {
+        return Err(ClaimError::InvalidDate(
+            "Format tanggal tidak valid. Gunakan format persis YYYY-MM-DD (contoh: 2026-01-05).".to_string(),
+        ));
+    }
+    let d = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|_| {
+        ClaimError::InvalidDate("Format tanggal tidak valid. Gunakan format persis YYYY-MM-DD.".to_string())
+    })?;
+    if d.format("%Y-%m-%d").to_string() != date_str {
+        return Err(ClaimError::InvalidDate(
+            "Format tanggal tidak valid. Gunakan format persis YYYY-MM-DD.".to_string(),
+        ));
+    }
+    Ok(d)
+}
+
+/// C1: Logika klaim pencairan diekstrak menjadi fungsi mandiri yang bisa dipanggil tes
+pub async fn claim_payout(
+    pool: &sqlx::PgPool,
+    tenant_id: i64,
+    claim_date: chrono::NaiveDate,
+    user_id: i64,
+    now_wib: chrono::DateTime<chrono::FixedOffset>,
+) -> Result<ClaimResult, ClaimError> {
+    use sqlx::Row;
+
+    let today_wib = now_wib.date_naive();
+    if claim_date > today_wib {
+        return Err(ClaimError::FutureDate);
+    }
+
+    let closing_time = chrono::NaiveTime::from_hms_opt(16, 0, 0).unwrap();
+    if claim_date == today_wib && now_wib.time() < closing_time {
+        return Err(ClaimError::BeforeCutoff);
+    }
+
+    // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database dengan ROW LOCKING
+    let mut tx = pool.begin().await.map_err(|e| {
+        ClaimError::DbError(format!("Gagal memulai transaksi database: {}", e))
+    })?;
+
+    // 1. Kunci baris stan di tabel tenants agar serial (anti race condition / klik ganda)
+    let lock_tenant_sql = "SELECT id FROM tenants WHERE id = $1 FOR UPDATE";
+    let tenant_exists: Option<(i64,)> = sqlx::query_as(lock_tenant_sql)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| ClaimError::DbError(e.to_string()))?;
+
+    if tenant_exists.is_none() {
+        return Err(ClaimError::TenantNotFound);
+    }
+
+    // 2. Kunci baris settlement jika ada dan cek apakah sudah lunas (status = paid)
+    // B3: Penanganan eksplisit, error DB dibubbling up dan transaksi dirollback!
+    let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2 FOR UPDATE";
+    let settlement_opt: Option<(String,)> = sqlx::query_as(check_sql)
+        .bind(tenant_id)
+        .bind(claim_date)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| ClaimError::DbError(format!("Gagal memeriksa status settlement: {}", e)))?;
+
+    if let Some((status,)) = settlement_opt {
+        if status == "paid" {
+            return Err(ClaimError::AlreadyPaid);
+        }
+    }
+
+    // 3. Kunci seluruh baris voucher yang statusnya used dan belum memiliki settlement_id
+    // B1: Pakai claim_date (NaiveDate) untuk bind SQL
+    let lock_vouchers_sql = r#"
+        SELECT id, amount
+        FROM vouchers
+        WHERE used_by_tenant_id = $1
+          AND voucher_date = $2
+          AND status = 'used'
+          AND settlement_id IS NULL
+        FOR UPDATE
+    "#;
+    let voucher_rows: Vec<(i64, i32)> = sqlx::query_as(lock_vouchers_sql)
+        .bind(tenant_id)
+        .bind(claim_date)
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|e| ClaimError::DbError(e.to_string()))?;
+
+    if voucher_rows.is_empty() {
+        return Err(ClaimError::NoVouchers);
+    }
+
+    let count = voucher_rows.len() as i64;
+    let amount: i64 = voucher_rows.iter().map(|(_, a)| *a as i64).sum();
+    let voucher_ids: Vec<i64> = voucher_rows.into_iter().map(|(id, _)| id).collect();
+
+    // 4. Buat catatan di tabel payouts
+    // B1: receipt_no dari parsed claim_date
+    let receipt_no = format!("PAY-{}-{}", claim_date.format("%Y%m%d"), tenant_id);
+
+    // B2: Hapus ON CONFLICT DO UPDATE. Gunakan INSERT biasa; unique violation (23505) -> 409 Conflict.
+    let ins_payout_sql = r#"
+        INSERT INTO payouts (receipt_no, tenant_id, amount, status, created_by)
+        VALUES ($1, $2, $3, 'transferred'::payout_status, $4)
+        RETURNING id
+    "#;
+
+    let payout_row = match sqlx::query(ins_payout_sql)
+        .bind(&receipt_no)
+        .bind(tenant_id)
+        .bind(amount as i32)
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await
+    {
+        Ok(r) => r,
+        Err(sqlx::Error::Database(db_err)) if db_err.code().as_deref() == Some("23505") => {
+            return Err(ClaimError::Conflict("Pencairan untuk stan dan tanggal ini sudah tercatat.".to_string()));
+        }
+        Err(e) => {
+            return Err(ClaimError::DbError(format!("Gagal mencatat payout: {}", e)));
+        }
+    };
+
+    let payout_id: i64 = payout_row.get("id");
+
+    // 5. Upsert ke tabel settlements
+    let upsert_settlement_sql = r#"
+        INSERT INTO settlements (tenant_id, business_date, voucher_count, total_amount, status, payout_id, closed_at)
+        VALUES ($1, $2, $3, $4, 'paid'::settlement_status, $5, now())
+        ON CONFLICT (tenant_id, business_date)
+        DO UPDATE SET status = 'paid'::settlement_status, voucher_count = EXCLUDED.voucher_count, total_amount = EXCLUDED.total_amount, payout_id = EXCLUDED.payout_id, closed_at = now()
+        RETURNING id
+    "#;
+
+    let settlement_row = sqlx::query(upsert_settlement_sql)
+        .bind(tenant_id)
+        .bind(claim_date)
+        .bind(count as i32)
+        .bind(amount as i32)
+        .bind(payout_id)
+        .fetch_one(&mut *tx)
+        .await
+        .map_err(|e| ClaimError::DbError(format!("Gagal mencatat settlement: {}", e)))?;
+
+    let settlement_id: i64 = settlement_row.get("id");
+
+    // 6. Hubungkan seluruh voucher yang dikunci tadi ke settlement_id ini
+    let upd_vouchers_sql = r#"
+        UPDATE vouchers
+        SET settlement_id = $1
+        WHERE id = ANY($2)
+    "#;
+    sqlx::query(upd_vouchers_sql)
+        .bind(settlement_id)
+        .bind(&voucher_ids)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| ClaimError::DbError(format!("Gagal menghubungkan voucher ke settlement: {}", e)))?;
+
+    // Commit transaksi
+    tx.commit().await.map_err(|e| {
+        ClaimError::DbError(format!("Gagal menyelesaikan transaksi: {}", e))
+    })?;
+
+    Ok(ClaimResult {
+        receipt_no,
+        payout_id,
+        settlement_id,
+        count,
+        amount,
+    })
+}
+
 pub async fn handle_finance_payout_claim(
     State(state): State<Arc<AppState>>,
     jar: CookieJar,
     headers: axum::http::HeaderMap,
     Json(payload): Json<PayoutClaimRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    use sqlx::Row;
-
-    // Dapatkan user_id dari sesi finance aktif secara ketat (T-3: Pisahkan IT & hapus fallback user 1)
+    // Dapatkan user_id dari sesi finance aktif secara ketat (T-3)
     let now_unix = chrono::Utc::now().timestamp();
     let current_user_id = jar
         .get("finance_sess")
@@ -234,160 +467,18 @@ pub async fn handle_finance_payout_claim(
         .map(|s| s.trim().to_string())
         .unwrap_or_else(|| "127.0.0.1".to_string());
 
-    // Validasi cut-off time: Pencairan hari ini HANYA boleh setelah jam 16:00 WIB (setelah jam tutup voucher)
+    // B1: Parse tanggal ketat
+    let claim_date = parse_strict_date(&payload.date).map_err(|e| e.to_status_and_json())?;
+
     let wib = chrono::FixedOffset::east_opt(7 * 3600).unwrap();
     let now_wib = chrono::Utc::now().with_timezone(&wib);
-    let today_wib = now_wib.date_naive();
-    let claim_date = chrono::NaiveDate::parse_from_str(&payload.date, "%Y-%m-%d").map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Format tanggal tidak valid. Gunakan YYYY-MM-DD." })),
-        )
-    })?;
 
-    if claim_date > today_wib {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Tidak dapat mencairkan dana untuk tanggal di masa depan." })),
-        ));
-    }
-
-    let closing_time = chrono::NaiveTime::from_hms_opt(16, 0, 0).unwrap();
-    if claim_date == today_wib && now_wib.time() < closing_time {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({
-                "error": "Pencairan dana hari ini baru dapat dilakukan setelah jam operasional voucher ditutup (pukul 16:00 WIB). Hal ini untuk memastikan seluruh staf telah selesai bertransaksi dan tidak ada voucher yang tertinggal."
-            })),
-        ));
-    }
-
-    // Seluruh proses pencairan kas dibungkus dalam SATU transaksi database dengan ROW LOCKING
-    let mut tx = state.pool.begin().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": format!("Gagal memulai transaksi database: {}", e) })),
-        )
-    })?;
-
-    // 1. Kunci baris stan di tabel tenants agar serial (anti race condition / klik ganda)
-    let lock_tenant_sql = "SELECT id FROM tenants WHERE id = $1 FOR UPDATE";
-    let tenant_exists: Option<(i64,)> = sqlx::query_as(lock_tenant_sql)
-        .bind(payload.tenant_id)
-        .fetch_optional(&mut *tx)
+    // C1: Panggil fungsi inti klaim pencairan
+    let res = claim_payout(&state.pool, payload.tenant_id, claim_date, current_user_id, now_wib)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
+        .map_err(|e| e.to_status_and_json())?;
 
-    if tenant_exists.is_none() {
-        return Err((
-            StatusCode::NOT_FOUND,
-            Json(serde_json::json!({ "error": "Stan kantin tidak ditemukan." })),
-        ));
-    }
-
-    // 2. Kunci baris settlement jika ada dan cek apakah sudah lunas (status = paid)
-    let check_sql = "SELECT status::text AS status FROM settlements WHERE tenant_id = $1 AND business_date = $2::date FOR UPDATE";
-    if let Ok(Some(row)) = sqlx::query(check_sql).bind(payload.tenant_id).bind(&payload.date).fetch_optional(&mut *tx).await {
-        let status: String = row.get("status");
-        if status == "paid" {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Pencairan kas untuk stan dan tanggal ini sudah selesai dilakukan (mencegah pencairan ganda)." })),
-            ));
-        }
-    }
-
-    // 3. Kunci seluruh baris voucher yang statusnya used dan belum memiliki settlement_id
-    let lock_vouchers_sql = r#"
-        SELECT id, amount
-        FROM vouchers
-        WHERE used_by_tenant_id = $1
-          AND voucher_date = $2::date
-          AND status = 'used'
-          AND settlement_id IS NULL
-        FOR UPDATE
-    "#;
-    let voucher_rows: Vec<(i64, i32)> = sqlx::query_as(lock_vouchers_sql)
-        .bind(payload.tenant_id)
-        .bind(&payload.date)
-        .fetch_all(&mut *tx)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e.to_string() }))))?;
-
-    if voucher_rows.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({ "error": "Tidak ada transaksi voucher baru yang belum dicairkan pada tanggal ini" })),
-        ));
-    }
-
-    let count = voucher_rows.len() as i64;
-    let amount: i64 = voucher_rows.iter().map(|(_, a)| *a as i64).sum();
-    let voucher_ids: Vec<i64> = voucher_rows.into_iter().map(|(id, _)| id).collect();
-
-    // 4. Buat catatan di tabel payouts
-    let receipt_no = format!("PAY-{}-{}", payload.date.replace("-", ""), payload.tenant_id);
-    let ins_payout_sql = r#"
-        INSERT INTO payouts (receipt_no, tenant_id, amount, status, created_by)
-        VALUES ($1, $2, $3, 'transferred'::payout_status, $4)
-        ON CONFLICT (receipt_no) DO UPDATE SET amount = EXCLUDED.amount, status = 'transferred'::payout_status
-        RETURNING id
-    "#;
-
-    let payout_row = sqlx::query(ins_payout_sql)
-        .bind(&receipt_no)
-        .bind(payload.tenant_id)
-        .bind(amount as i32)
-        .bind(current_user_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat payout: {}", e) }))))?;
-
-    let payout_id: i64 = payout_row.get("id");
-
-    // 5. Upsert ke tabel settlements
-    let upsert_settlement_sql = r#"
-        INSERT INTO settlements (tenant_id, business_date, voucher_count, total_amount, status, payout_id, closed_at)
-        VALUES ($1, $2::date, $3, $4, 'paid'::settlement_status, $5, now())
-        ON CONFLICT (tenant_id, business_date)
-        DO UPDATE SET status = 'paid'::settlement_status, voucher_count = EXCLUDED.voucher_count, total_amount = EXCLUDED.total_amount, payout_id = EXCLUDED.payout_id, closed_at = now()
-        RETURNING id
-    "#;
-
-    let settlement_row = sqlx::query(upsert_settlement_sql)
-        .bind(payload.tenant_id)
-        .bind(&payload.date)
-        .bind(count as i32)
-        .bind(amount as i32)
-        .bind(payout_id)
-        .fetch_one(&mut *tx)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal mencatat settlement: {}", e) }))))?;
-
-    let settlement_id: i64 = settlement_row.get("id");
-
-    // 6. Hubungkan seluruh voucher yang dikunci tadi ke settlement_id ini
-    let upd_vouchers_sql = r#"
-        UPDATE vouchers
-        SET settlement_id = $1
-        WHERE id = ANY($2)
-    "#;
-    sqlx::query(upd_vouchers_sql)
-        .bind(settlement_id)
-        .bind(&voucher_ids)
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": format!("Gagal menghubungkan voucher ke settlement: {}", e) }))))?;
-
-    // 6. Selesaikan transaksi (COMMIT)
-    tx.commit().await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": format!("Gagal menyelesaikan transaksi: {}", e) })),
-        )
-    })?;
-
-    // 7. Catat jejak audit finansial (T-3)
+    // Catat jejak audit finansial (T-3)
     let _ = crate::db::write_audit_log(
         &state.pool,
         Some(current_user_id),
@@ -395,12 +486,12 @@ pub async fn handle_finance_payout_claim(
         None,
         serde_json::json!({
             "tenant_id": payload.tenant_id,
-            "business_date": payload.date,
-            "receipt_no": receipt_no,
-            "payout_id": payout_id,
-            "settlement_id": settlement_id,
-            "voucher_count": count,
-            "total_amount": amount,
+            "business_date": claim_date.to_string(),
+            "receipt_no": res.receipt_no,
+            "payout_id": res.payout_id,
+            "settlement_id": res.settlement_id,
+            "voucher_count": res.count,
+            "total_amount": res.amount,
         }),
         Some("Pencairan dana klaim kasir stan kantin"),
         Some(&client_ip),
@@ -409,10 +500,11 @@ pub async fn handle_finance_payout_claim(
 
     Ok(Json(serde_json::json!({
         "ok": true,
-        "receiptNo": receipt_no,
-        "payoutId": payout_id,
-        "settlementId": settlement_id,
-        "amount": amount,
+        "receiptNo": res.receipt_no,
+        "payoutId": res.payout_id,
+        "settlementId": res.settlement_id,
+        "amount": res.amount,
+        "count": res.count,
     })))
 }
 

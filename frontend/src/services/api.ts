@@ -66,18 +66,19 @@ export const api = {
       request<{ ok: boolean; message: string }>(`/admin/staff/${id}/resend-voucher`, {
         method: 'POST',
       }),
-    issueVouchers: (date?: string, force?: boolean) =>
+    issueVouchers: (date?: string, force?: boolean, resend?: boolean) =>
       request<{
         date: string
         total_staff: number
         issued_count: number
         skipped_count: number
+        failed_count: number
         skipped_holiday_or_weekend: boolean
         message: string
         details: string[]
       }>('/admin/issue-vouchers', {
         method: 'POST',
-        body: JSON.stringify({ date, force }),
+        body: JSON.stringify({ date, force, resend }),
       }),
 
     // Tenants

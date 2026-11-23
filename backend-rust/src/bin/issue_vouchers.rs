@@ -15,6 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args: Vec<String> = env::args().collect();
     let mut force = false;
+    let mut resend = false;
     let mut target_date = None;
 
     let mut i = 1;
@@ -22,6 +23,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match args[i].as_str() {
             "--force" | "-f" => {
                 force = true;
+            }
+            "--resend" | "-r" => {
+                resend = true;
             }
             "--date" | "-d" => {
                 if i + 1 < args.len() {
@@ -39,12 +43,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         i += 1;
     }
 
-    match issuer::run_issue_vouchers(&pool, &cfg, target_date, force).await {
+    match issuer::run_issue_vouchers(&pool, &cfg, target_date, force, resend).await {
         Ok(res) => {
             println!("📅 Tanggal: {}", res.date);
             println!("👥 Total Staf Aktif: {}", res.total_staff);
             println!("🎟️  Voucher Diterbitkan: {}", res.issued_count);
             println!("⏩ Dilewati: {}", res.skipped_count);
+            println!("❌ Gagal: {}", res.failed_count);
             println!("ℹ️  Status: {}", res.message);
             println!("------------------------------------------------------------");
             for line in res.details {

@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [data, setData] = useState<AdminSummaryData | null>(null)
   const [loading, setLoading] = useState(true)
   const [issuing, setIssuing] = useState(false)
-  const [issueResult, setIssueResult] = useState<{ message: string; details: string[] } | null>(null)
+  const [issueResult, setIssueResult] = useState<{ message: string; details: string[]; failed_count?: number } | null>(null)
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
 
   useEffect(() => {
@@ -46,7 +46,7 @@ export default function AdminDashboard() {
     try {
       setIssuing(true)
       const res = await api.admin.issueVouchers(date, false)
-      setIssueResult({ message: res.message, details: res.details })
+      setIssueResult({ message: res.message, details: res.details, failed_count: res.failed_count })
       loadSummary(date)
     } catch (err: any) {
       alert(err.message || 'Gagal menerbitkan voucher')
@@ -308,6 +308,12 @@ export default function AdminDashboard() {
               <p className="text-xs text-slate-600 text-center mb-4 leading-relaxed font-medium">
                 {issueResult.message}
               </p>
+
+              {(issueResult.failed_count ?? 0) > 0 && (
+                <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs font-semibold text-amber-800 flex items-center justify-center gap-1.5">
+                  <span>⚠️ Ada {issueResult.failed_count} staf gagal diproses. Lihat rincian di bawah.</span>
+                </div>
+              )}
 
               <div className="max-h-48 overflow-y-auto bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1 mb-5 font-mono text-slate-700">
                 {issueResult.details.map((d, i) => (

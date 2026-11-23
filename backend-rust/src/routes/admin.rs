@@ -473,6 +473,7 @@ pub async fn handle_transactions(
 pub struct IssueVoucherQuery {
     pub date: Option<String>,
     pub force: Option<bool>,
+    pub resend: Option<bool>,
 }
 
 pub async fn handle_admin_issue_vouchers(
@@ -486,12 +487,14 @@ pub async fn handle_admin_issue_vouchers(
         .and_then(|p| p.date.as_deref())
         .and_then(|s| chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").ok());
     let force = payload.as_ref().and_then(|p| p.force).unwrap_or(false);
+    let resend = payload.as_ref().and_then(|p| p.resend).unwrap_or(false);
 
     let summary = crate::issuer::run_issue_vouchers(
         &state.pool,
         &state.config,
         target_date,
         force,
+        resend,
     )
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": e }))))?;
@@ -507,8 +510,10 @@ pub async fn handle_admin_issue_vouchers(
         serde_json::json!({
             "target_date": target_date.map(|d| d.to_string()),
             "force": force,
+            "resend": resend,
             "issued": summary.issued_count,
             "skipped": summary.skipped_count,
+            "failed": summary.failed_count,
             "total": summary.total_staff,
         }),
         Some("Penerbitan voucher harian dosen & staf"),

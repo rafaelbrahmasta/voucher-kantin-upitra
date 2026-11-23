@@ -119,6 +119,7 @@ pub async fn send_voucher_email(cfg: &Config, data: &VoucherEmailData<'_>) -> Re
     match cfg.mail_driver.as_str() {
         "graph" => send_via_microsoft_graph(cfg, data, &qr_png_b64).await,
         "smtp" => send_via_smtp(cfg, data, &qr_png_b64).await,
+        "fail" => Err("Simulasi kegagalan pengiriman email (MAIL_DRIVER=fail)".to_string()),
         _ => {
             // Mode "log" (default offline)
             tracing::info!(
